@@ -1,0 +1,10 @@
+- include_tasks: update.yaml
+- include_tasks: local.yaml
+- include_tasks: reboot.yaml
+- include_tasks: tools.yaml
+- include_tasks: hosts.yaml
+- include_tasks: hostnamehostnode.yaml
+  when: '"hostnode" in group_names'
+- include_tasks: hostnameworkers.yaml
+  when: '"workers" in group_names'
+- include_tasks: ssh_config.yaml

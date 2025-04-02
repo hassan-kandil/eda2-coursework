@@ -1,0 +1,49 @@
+---
+- name: Fix SELinux permissions
+  shell: setsebool -P httpd_can_network_connect 1
+
+- name: Install nginx
+  package:
+    name: nginx
+    state: present
+
+- name: Enable and start nginx service
+  service:
+    name: nginx
+    state: started
+    enabled: yes
+
+- name: Backup existing nginx.conf
+  copy:
+    src: /etc/nginx/nginx.conf
+    dest: /etc/nginx/nginx.conf.backup
+    remote_src: yes
+    force: yes
+
+- name: Copy nginx configuration
+  copy:
+    src: files/nginx.conf
+    dest: /etc/nginx/nginx.conf
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Validate nginx configuration
+  command: nginx -t
+  register: nginx_validate
+  changed_when: false
+
+- name: Restore backup if validation fails
+  copy:
+    src: /etc/nginx/nginx.conf.backup
+    dest: /etc/nginx/nginx.conf
+    remote_src: yes
+    force: yes
+  when: nginx_validate.rc != 0
+
+- name: Restart nginx if configuration is valid
+  service:
+    name: nginx
+    state: restarted
+  when: nginx_validate.rc == 0
+

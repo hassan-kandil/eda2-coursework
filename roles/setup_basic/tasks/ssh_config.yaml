@@ -1,0 +1,6 @@
+- name: ssh config
+  ansible.builtin.copy:
+    src: "{{ role_path }}/files/ssh_config"
+    dest: /home/almalinux/.ssh/config
+    owner: almalinux
+    group: almalinux

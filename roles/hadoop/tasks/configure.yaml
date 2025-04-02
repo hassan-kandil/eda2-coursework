@@ -1,0 +1,151 @@
+- name: Add hadoop tmp directory
+  ansible.builtin.file:
+    path: /opt/hadoop_tmp
+    owner: almalinux
+    group: almalinux
+    state: directory
+  become: true
+- name: Add hdfs directory
+  ansible.builtin.file:
+    path: /opt/hadoop_tmp/hdfs
+    owner: almalinux
+    group: almalinux
+    state: directory
+  become: true
+- name: config core-site.xml
+  ansible.builtin.blockinfile:
+    path: /home/almalinux/hadoop-3.4.0/etc/hadoop/core-site.xml
+    insertafter: <configuration>
+    marker: "<!-- {mark} ANSIBLE MANAGED BLOCK -->"
+    block: |
+      <property>
+          <name>fs.default.name</name>
+          <value>hdfs://hostnode:9000/</value>
+      </property>
+      <property>
+          <name>fs.default.FS</name>
+          <value>hdfs://hostnode:9000/</value>
+      </property>
+      <property>
+          <name>hadoop.proxyuser.almalinux.hosts</name>
+          <value>*</value>
+      </property>
+      <property>
+          <name>hadoop.proxyuser.almalinux.groups</name>
+          <value>*</value>
+      </property>
+    state: present
+- name: config hdfs-site.xml
+  ansible.builtin.blockinfile:
+    path: /home/almalinux/hadoop-3.4.0/etc/hadoop/hdfs-site.xml
+    insertafter: <configuration>
+    marker: "<!-- {mark} ANSIBLE MANAGED BLOCK -->"
+    block: |
+      <property>
+          <name>dfs.datanode.data.dir</name>
+          <value>/opt/hadoop_tmp/hdfs/datanode</value>
+          <final>true</final>
+      </property>
+      <property>
+          <name>dfs.namenode.name.dir</name>
+          <value>/opt/hadoop_tmp/hdfs/namenode</value>
+          <final>true</final>
+      </property>
+      <property>
+          <name>dfs.namenode.http-address</name>
+          <value>hostnode:9870</value>
+      </property>
+      <property>
+          <name>dfs.replication</name>
+          <value>3</value> 
+      </property>
+    state: present
+- name: config yarn-site.xml
+  ansible.builtin.blockinfile:
+    path: /home/almalinux/hadoop-3.4.0/etc/hadoop/yarn-site.xml
+    insertafter: <configuration>
+    marker: "<!-- {mark} ANSIBLE MANAGED BLOCK -->"
+    block: |
+      <property>
+          <name>yarn.resourcemanager.resource-tracker.address</name>
+          <value>hostnode:8025</value>
+      </property>
+      <property>
+          <name>yarn.resourcemanager.scheduler.address</name>
+          <value>hostnode:8035</value>
+      </property>
+      <property>
+          <name>yarn.resourcemanager.address</name>
+          <value>hostnode:8050</value>
+      </property>
+      <property>
+          <name>yarn.log-aggregation-enable</name>
+          <value>true</value>
+      </property>
+      <property>
+          <name>yarn.nodemanager.resource.cpu-vcores</name>
+          <value>4</value>
+      </property>
+      <property>
+          <name>yarn.scheduler.minimum-allocation-vcores</name>
+          <value>1</value>
+      </property>
+      <property>
+          <name>yarn.nodemanager.resource.memory-mb</name>
+          <value>28672</value>
+      </property>
+      <property>
+          <name>yarn.scheduler.maximum-allocation-mb</name>
+          <value>8192</value>
+      </property>
+    state: present
+- name: config mapred-site.xml
+  ansible.builtin.blockinfile:
+    path: /home/almalinux/hadoop-3.4.0/etc/hadoop/mapred-site.xml
+    insertafter: <configuration>
+    marker: "<!-- {mark} ANSIBLE MANAGED BLOCK -->"
+    block: |
+      <property>
+          <name>mapreduce.job.tracker</name>
+          <value>hostnode:5431</value>
+      </property>
+      <property>
+          <name>mapred.framework.name</name>
+          <value>yarn</value>
+      </property>
+    state: present
+- name: httpfs-site.xml
+  ansible.builtin.blockinfile:
+    path: /home/almalinux/hadoop-3.4.0/etc/hadoop/httpfs-site.xml
+    insertafter: <configuration>
+    marker: "<!-- {mark} ANSIBLE MANAGED BLOCK -->"
+    block: |
+      <property>
+        <name>httpfs.permissions.enabled</name>
+        <value>true</value>
+      </property>
+      <property>
+        <name>httpfs.hadoop.authentication.type</name>
+        <value>simple</value>
+      </property>
+      <property>
+          <name>httpfs.hadoop.proxyuser.publicuser.groups</name>
+          <value>*</value>
+      </property>
+      <property>
+          <name>httpfs.hadoop.proxyuser.publicuser.hosts</name>
+          <value>*</value>
+      </property>
+- name: Install lxml package dependencies
+  package:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - python3-lxml
+  become: true
+- name: config capacity-scheduler.xml
+  xml:
+    path: /home/almalinux/hadoop-3.4.0/etc/hadoop/capacity-scheduler.xml
+    xpath: '/configuration/property[name="yarn.scheduler.capacity.resource-calculator"]/value'
+    value: org.apache.hadoop.yarn.util.resource.DominantResourceCalculator
+

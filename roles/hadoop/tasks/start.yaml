@@ -1,0 +1,15 @@
+- name: Check if HDFS is formatted
+  ansible.builtin.stat:
+    path: /opt/hadoop_tmp/hdfs/namenode/current/VERSION
+  register: hdfs_version
+- name: Format HDFS namenode
+  ansible.builtin.shell: hdfs namenode -format
+  when: not hdfs_version.stat.exists
+- name: restart dfs and yarn
+  ansible.builtin.shell: |
+    nohup /home/almalinux/hadoop-3.4.0/sbin/stop-all.sh
+    nohup /home/almalinux/hadoop-3.4.0/sbin/start-all.sh
+- name: restart httpfs
+  ansible.builtin.shell: |
+    nohup hdfs --daemon stop httpfs
+    nohup hdfs --daemon start httpfs

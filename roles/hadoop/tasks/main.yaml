@@ -1,0 +1,11 @@
+---
+# tasks file for hadoop
+- include_tasks: download.yaml
+- include_tasks: set_env.yaml
+- include_tasks: configure.yaml
+- include_tasks: setup_host.yaml
+  when: "'hostnode' in group_names"
+- include_tasks: setup_workers.yaml
+  when: "'workers' in group_names"
+- include_tasks: start.yaml
+  when: "'hostnode' in group_names"

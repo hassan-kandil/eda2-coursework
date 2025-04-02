@@ -1,0 +1,14 @@
+- name: Download hadoop
+  ansible.builtin.get_url:
+    dest: /home/almalinux/hadoop.tar.gz
+    url: "https://dlcdn.apache.org/hadoop/common/hadoop-3.4.0/hadoop-3.4.0.tar.gz"
+- name: Unpack tgz file
+  ansible.builtin.unarchive:
+    dest: /home/almalinux/
+    remote_src: true
+    src: /home/almalinux/hadoop.tar.gz
+    creates: /home/almalinux/hadoop-3.4.0
+- name: Remove hadoop tar file
+  ansible.builtin.file:
+    path: /home/almalinux/hadoop.tar.gz
+    state: absent

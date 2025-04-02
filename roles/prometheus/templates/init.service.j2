@@ -1,0 +1,19 @@
+[Unit]
+Description={{serviceName}}
+Documentation=https://prometheus.io/docs/introduction/overview/
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User={{ userId }}
+Group={{ groupId }}
+Restart=always
+RestartSec=2
+StartLimitInterval=0
+ExecReload=/bin/kill -HUP $MAINPID
+ExecStart={{ exec_command }}
+SyslogIdentifier={{serviceName}}
+
+[Install]
+WantedBy=multi-user.target

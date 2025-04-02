@@ -1,0 +1,55 @@
+- name: VMs basic tools and packages setup
+  hosts: all
+  become: true
+  become_user: root
+  roles:
+    - setup_basic
+
+- name: Generate shared SSH keys
+  hosts: hostnode
+  roles:
+    - generate_ssh_key
+
+- name: Share SSH keys
+  hosts: hostnode:workers
+  roles:
+    - share_ssh_key
+
+- name: Install and configure Hadoop
+  hosts: all
+  roles:
+    - hadoop
+
+- name: Install and configure Nginx
+  hosts: hostnode
+  become: true
+  become_user: root
+  roles:
+    - nginx
+
+- name: Install and configure spark
+  hosts: all
+  roles:
+    - spark
+
+- name: Set up Prometheus
+  hosts: hostnode
+  become: true
+  become_user: root
+  roles:
+    - prometheus
+
+- name: Set up node exporter 
+  hosts: workers
+  become: true
+  become_user: root
+  roles:
+    - node_exporter
+
+- name: Set up Grafana
+  hosts: hostnode
+  become: true
+  become_user: root
+  roles:
+    - grafana
+

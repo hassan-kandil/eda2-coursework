@@ -1,0 +1,14 @@
+- name: Download spark .jar
+  ansible.builtin.get_url:
+    dest: /home/almalinux/spark.tgz
+    url: "https://dlcdn.apache.org/spark/spark-{{version}}/spark-{{version}}-bin-hadoop3-scala2.13.tgz"
+- name: Unpack tgz file
+  ansible.builtin.unarchive:
+    dest: /home/almalinux/
+    remote_src: true
+    src: /home/almalinux/spark.tgz
+    creates: /home/almalinux/spark-{{version}}-bin-hadoop3-scala2.13
+- name: Remove spark tar file
+  ansible.builtin.file:
+    path: /home/almalinux/spark.tgz
+    state: absent

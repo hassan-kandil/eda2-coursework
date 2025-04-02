@@ -1,0 +1,4 @@
+- name: Restart spark master
+  ansible.builtin.shell: |
+    spark-{{version}}-bin-hadoop3-scala2.13/sbin/stop-master.sh 
+    spark-{{version}}-bin-hadoop3-scala2.13/sbin/start-master.sh 

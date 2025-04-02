@@ -1,0 +1,26 @@
+- name: Install quality of life tools, compilers, python3, slurm
+  ansible.builtin.dnf:
+    name:
+      - glibc-langpack-en
+      - vim
+      - emacs
+      - nano
+      - screen
+      - tmux
+      - net-tools
+      - bind-utils
+      - htop
+      - git
+      - python3-devel
+      - python3-pip
+      - python3-virtualenv
+      - patch
+      - bzip2
+      - make
+      - nfs-utils
+      - links
+      - wget
+      - unzip
+      - ufw
+      - java-11-openjdk
+    state: latest
