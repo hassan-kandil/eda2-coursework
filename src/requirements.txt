@@ -1,0 +1,6 @@
+https://download.pytorch.org/whl/cpu/torch-2.0.1%2Bcpu-cp39-cp39-linux_x86_64.whl#sha256=73482a223d577407c45685fde9d2a74ba42f0d8d9f6e1e95c08071dc55c47d7b
+transformers==4.18.0
+tqdm>=4.62.0
+pyarrow>=6.0.0
+numpy==1.20.3 
+pandas==1.3.5
