@@ -2,7 +2,7 @@
 from subprocess import PIPE, Popen
 import uuid
 
-from config import logger
+from .config import logger
 
 
 def run_command(cmd: str):

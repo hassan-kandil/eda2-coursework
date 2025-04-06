@@ -7,7 +7,7 @@ from pyspark.sql.functions import col
 from sentiment_analysis.config import logger
 from sentiment_analysis.utils import run_command
 from sentiment_analysis.load import load_amazon_reviews, load_model
-from sentiment_analysis.process import batch_sentiment_analysis
+import sentiment_analysis.process as process
 
 
 def write_df_to_hdfs_csv(df, hdfs_path, csv_file_name):
@@ -44,13 +44,11 @@ if __name__ == "__main__":
     # Load model and tokenizer
     tokenizer, model = load_model()
     # Broadcast model and tokenizer to all workers
-    broadcast_tokenizer = spark.sparkContext.broadcast(tokenizer)
-    broadcast_model = spark.sparkContext.broadcast(model)
+    process.bc_tokenizer = spark.sparkContext.broadcast(tokenizer)
+    process.bc_model = spark.sparkContext.broadcast(model)
     sentiment_results_df = reviews_df.withColumn(
         "result",
-        batch_sentiment_analysis(
-            broadcast_tokenizer.value, broadcast_model.value, reviews_df["text"]
-        ),
+        process.batch_sentiment_analysis(reviews_df["text"]),
     )
     # Flatten the result column
     sentiment_results_df = sentiment_results_df.select(

@@ -10,6 +10,8 @@ from pyspark.sql.types import (
 import torch
 from transformers import PreTrainedTokenizer, PreTrainedModel
 
+from .load import load_model
+
 
 # Define schema for sentiment analysis results
 sentiment_schema = StructType(
@@ -19,12 +21,11 @@ sentiment_schema = StructType(
         StructField("score", FloatType(), True),
     ]
 )
+bc_tokenizer, bc_model = None, None
 
 
 @pandas_udf(sentiment_schema)
-def batch_sentiment_analysis(
-    tokenizer: PreTrainedTokenizer, model: PreTrainedModel, review_texts: pd.Series
-) -> pd.DataFrame:
+def batch_sentiment_analysis(review_texts: pd.Series) -> pd.DataFrame:
     """
     Process batches of reviews for sentiment analysis using pandas UDF.
     This function will be executed on each worker node.
@@ -37,7 +38,13 @@ def batch_sentiment_analysis(
     Returns:
         DataFrame with sentiment analysis results
     """
-    print("Loading the model...")
+    global bc_tokenizer, bc_model
+    print(f"Processing {len(review_texts)} reviews...")
+    tokenizer, model = bc_tokenizer.value, bc_model.value
+    if tokenizer is None or model is None:
+        print("Loading tokenizer and model since they are uninitialized...")
+        # Load the tokenizer and model
+        tokenizer, model = load_model()
     model.eval()  # Set model to evaluation mode
 
     results = []
