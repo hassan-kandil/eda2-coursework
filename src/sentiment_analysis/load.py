@@ -1,6 +1,8 @@
 from pyspark.sql.functions import col
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
+from .config import logger
+
 
 def load_amazon_reviews(spark, file_path, sample_ratio=None):
     """
@@ -34,11 +36,12 @@ def load_amazon_reviews(spark, file_path, sample_ratio=None):
 
 def load_model():
     """Load the pre-trained BERTweet model for sentiment analysis."""
+    logger.info("Loading BERTweet model and tokenizer...")
     tokenizer = AutoTokenizer.from_pretrained(
-        "finiteautomata/bertweet-base-sentiment-analysis"
+        "finiteautomata/bertweet-base-sentiment-analysis", cache_dir="/tmp/hf_cache"
     )
     model = AutoModelForSequenceClassification.from_pretrained(
-        "finiteautomata/bertweet-base-sentiment-analysis"
+        "finiteautomata/bertweet-base-sentiment-analysis", cache_dir="/tmp/hf_cache"
     )
     # Move model to CPU as default (will be used across workers)
     model.cpu()

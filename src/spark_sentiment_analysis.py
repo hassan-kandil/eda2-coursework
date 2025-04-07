@@ -37,10 +37,10 @@ if __name__ == "__main__":
     # Initialize Spark session
     spark = SparkSession.builder.appName("SentimentAnalysis").getOrCreate()
     # Load the dataset
-    reviews_df = load_amazon_reviews(spark, input_path, sample_ratio=0.05)
+    reviews_df = load_amazon_reviews(spark, input_path)
     # Count total reviews
     total_reviews = reviews_df.count()
-    print(f"Processing {total_reviews:,} reviews")
+    logger.info(f"Processing {total_reviews:,} reviews")
     # Load model and tokenizer
     tokenizer, model = load_model()
     # Broadcast model and tokenizer to all workers
@@ -61,7 +61,7 @@ if __name__ == "__main__":
     start_time = time.time()
     sentiment_results_df.write.mode("overwrite").parquet(output_path)
     end_time = time.time()
-    print(f"Done processing all reviews in {end_time - start_time:.2f} seconds")
+    logger.info(f"Done processing all reviews in {end_time - start_time:.2f} seconds")
     # Combine results into a single csv file
     # Read the Parquet files
     df = spark.read.parquet(output_path).coalesce(1)
