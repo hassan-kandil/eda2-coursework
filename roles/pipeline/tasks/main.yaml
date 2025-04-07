@@ -1,0 +1,13 @@
+- include_vars: "{{ role_path }}/vars/vars.yaml"
+- name: Fetch datasets
+  include_tasks: fetch_datasets.yaml
+  with_items: "{{ datasets }}"
+  when: inventory_hostname == groups['workers'][1]
+- name: Prepare output directories
+  include_tasks: prepare_output.yaml
+  when: inventory_hostname == groups['workers'][1]
+- include_tasks: pipeline_code.yaml
+- include_tasks: install_dependencies.yaml
+  when: '"workers" in group_names'
+# - include_tasks: run.yaml
+#   when: "'hostnode' in group_names"

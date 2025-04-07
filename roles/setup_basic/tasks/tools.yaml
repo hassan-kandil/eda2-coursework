@@ -23,4 +23,5 @@
       - unzip
       - ufw
       - java-11-openjdk
+      - gzip
     state: latest

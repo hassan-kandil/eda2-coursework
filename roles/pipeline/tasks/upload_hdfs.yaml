@@ -1,0 +1,16 @@
+- name: Upload file to HDFS
+  command: hdfs dfs -put -f /home/almalinux/data/{{ item }}/{{ file.path | basename }} /{{ item }}/
+  register: upload_result
+  changed_when: upload_result.rc == 0
+  silent: true
+
+- name: File upload result
+  debug:
+    msg: "Uploaded file {{ file.path | basename }} to HDFS."
+  when: upload_result is changed
+
+- name: Delete local file after upload
+  ansible.builtin.file:
+    path: "{{ file.path }}"
+    state: absent
+  when: upload_result is changed

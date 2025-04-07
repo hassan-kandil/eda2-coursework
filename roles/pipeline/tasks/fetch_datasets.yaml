@@ -1,0 +1,35 @@
+- name: Create empty data directory
+  file:
+    path: /home/almalinux/data
+    state: directory
+- name: Fetch Amazon Reviews Dataset
+  ansible.builtin.get_url:
+    url: https://mcauleylab.ucsd.edu/public_datasets/data/amazon_2023/raw/review_categories/{{ item }}.jsonl.gz
+    dest: /home/almalinux/data/{{ item }}.jsonl.gz
+- name: Ensure gzip is installed
+  ansible.builtin.package:
+    name: gzip
+    state: present
+  become: yes
+- name: Unarchive .jsonl.gz file
+  ansible.builtin.shell: gunzip -c "{{ source_file }}" > "{{ dest_file }}"
+  args:
+    creates: "{{ dest_file }}"
+  vars:
+    source_file: /home/almalinux/data/{{ item }}.jsonl.gz
+    dest_file: /home/almalinux/data/{{ item }}.jsonl
+- name: Remove Amazon Reviews Dataset Archive
+  ansible.builtin.file:
+    path: /home/almalinux/data/{{ item }}.jsonl.gz
+    state: absent
+- name: Upload local directory to HDFS
+  command: hdfs dfs -put -f /home/almalinux/data/{{ item }}.jsonl /
+  register: upload_result
+- name: Verify upload
+  debug:
+    msg: "Directory uploaded to HDFS successfully."
+  when: upload_result is changed
+- name: Remove dataset local file
+  ansible.builtin.file:
+    path: /home/almalinux/data/{{ item }}.jsonl
+    state: absent

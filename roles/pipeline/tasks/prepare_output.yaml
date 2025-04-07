@@ -1,0 +1,20 @@
+- name: Check if HDFS analysis_outputs directory exists
+  command: hdfs dfs -test -d /analysis_outputs/
+  register: hdfs_dir_check
+  ignore_errors: yes
+  changed_when: no
+
+- name: Create HDFS analysis_outputs directory if it does not exist
+  command: hdfs dfs -mkdir -p /analysis_outputs/
+  when: hdfs_dir_check.rc != 0
+
+- name: Check if HDFS summary_outputs directory exists
+  command: hdfs dfs -test -d /summary_outputs/
+  register: hdfs_dir_check
+  ignore_errors: yes
+  changed_when: no
+
+- name: Create HDFS summary_outputs directory if it does not exist
+  command: hdfs dfs -mkdir -p /summary_outputs/
+  when: hdfs_dir_check.rc != 0
+

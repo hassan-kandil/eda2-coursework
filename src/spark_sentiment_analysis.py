@@ -33,7 +33,7 @@ def write_df_to_hdfs_csv(df, hdfs_path, csv_file_name):
 
 
 if __name__ == "__main__":
-    input_path, output_path = "/Subscription_Boxes.jsonl", "/output"
+    input_path, output_path = "/Subscription_Boxes.jsonl", "/analysis_outputs"
     # Initialize Spark session
     spark = SparkSession.builder.appName("SentimentAnalysis").getOrCreate()
     # Load the dataset
@@ -71,6 +71,5 @@ if __name__ == "__main__":
         "/summary_outputs/",
         "sentiment_analysis_results",
     )
-
     # Stop Spark session
     spark.stop()

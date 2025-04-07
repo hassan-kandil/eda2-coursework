@@ -1,0 +1,4 @@
+- name: Install required python dependencies
+  ansible.builtin.pip:
+    requirements: /home/almalinux/sentiment_analysis/requirements.txt
+  become: yes

@@ -1,0 +1,7 @@
+datasets:
+  - "Subscription_Boxes"
+  - "Software"
+output_directories:
+  - "/analysis_outputs/"
+  - "/summary_outputs/"
+  
