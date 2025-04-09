@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
-PyTorch thread scaling benchmark with accurate CPU monitoring.
-Tests equal intra-op and inter-op thread configurations (1,1 2,2 3,3 4,4) and
-accurately measures actual CPU core utilization during processing.
+PyTorch thread scaling benchmark with simplified memory tracking.
+Only records the most important memory metrics at key points.
 """
 
 import json
@@ -11,6 +10,7 @@ import sys
 import time
 import psutil
 import threading
+import gc
 import numpy as np
 import pandas as pd
 import torch
@@ -33,30 +33,32 @@ def load_data(file_path, limit=1000):
     return [review["text"] for review in reviews]
 
 def measure_memory():
-    """Simple function to measure current memory usage"""
+    """Measure memory usage after forcing garbage collection"""
+    # Force garbage collection to get accurate measurements
+    gc.collect()
+    
+    # Get process memory info
     process = psutil.Process(os.getpid())
     memory_mb = process.memory_info().rss / (1024 * 1024)
     return memory_mb
 
 def monitor_cpu_during_processing(reviews_to_process, tokenizer, model):
-    """
-    Continuously monitor CPU while processing reviews
-    Returns both processing results and CPU utilization data
-    """
+    """Continuously monitor CPU while processing reviews"""
     # Storage for CPU measurements and results
     cpu_samples = []
     stop_monitoring = threading.Event()
-    processing_complete = threading.Event()
     processing_times = []
     token_counts = []
-    sentiment_results = []
+    
+    # Memory before processing
+    memory_before = measure_memory()
     
     # CPU monitoring thread function
     def cpu_monitor_thread():
         # Wait briefly for processing to begin
         time.sleep(1.0)
         
-        # Take samples until processing is complete
+        # Take samples until stopped
         while not stop_monitoring.is_set():
             # Get per-CPU utilization (0.1s interval)
             per_cpu = psutil.cpu_percent(interval=0.1, percpu=True)
@@ -74,6 +76,9 @@ def monitor_cpu_during_processing(reviews_to_process, tokenizer, model):
     
     # Process the reviews
     start_total = time.time()
+    
+    # Track peak memory during processing
+    peak_memory = memory_before
     
     # Process each review
     for review_text in tqdm(reviews_to_process, desc="Processing reviews"):
@@ -94,20 +99,20 @@ def monitor_cpu_during_processing(reviews_to_process, tokenizer, model):
         # Perform sentiment analysis
         with torch.no_grad():
             sentiment_batch = model(**inputs).logits
-            
-        predicted_class_id = sentiment_batch.argmax().item()
-        sentiment_label = model.config.id2label[predicted_class_id]
-        
-        sentiment_results.append({
-            "review_text": review_text[:50] + "...",  # Truncate for storage
-            "sentiment": sentiment_label
-        })
         
         # Record time
         batch_time = time.time() - start_time
         processing_times.append(batch_time)
+        
+        # Check if memory has increased
+        if len(processing_times) % 50 == 0:
+            current_memory = measure_memory()
+            peak_memory = max(peak_memory, current_memory)
     
     total_time = time.time() - start_total
+    
+    # Memory after processing
+    memory_after = measure_memory()
     
     # Signal monitoring thread to stop
     stop_monitoring.set()
@@ -143,17 +148,28 @@ def monitor_cpu_during_processing(reviews_to_process, tokenizer, model):
             "samples_collected": len(cpu_samples)
         }
     
+    # Memory metrics
+    memory_metrics = {
+        "memory_before_mb": memory_before,
+        "memory_after_mb": memory_after,
+        "peak_memory_mb": peak_memory,
+        "memory_increase_mb": peak_memory - memory_before
+    }
+    
     # Return all results
     return {
         "processing_times": processing_times,
         "token_counts": token_counts,
         "total_time": total_time,
         "cpu_metrics": cpu_metrics,
-        "sentiment_results": sentiment_results
+        "memory_metrics": memory_metrics
     }
 
 def run_single_benchmark(threads, reviews, num_samples=500):
     """Run a single benchmark with equal intra/inter thread configuration"""
+    # Clear memory before starting
+    gc.collect()
+    
     # Set thread counts (equal for both intra and inter)
     torch.set_num_threads(threads)
     torch.set_num_interop_threads(threads)
@@ -162,21 +178,26 @@ def run_single_benchmark(threads, reviews, num_samples=500):
     print(f"Actual torch.get_num_threads(): {torch.get_num_threads()}")
     print(f"Actual torch.get_num_interop_threads(): {torch.get_num_interop_threads()}")
     
+    # Initial memory measurement (before model load)
+    initial_memory = measure_memory()
+    print(f"Initial memory usage: {initial_memory:.2f} MB")
+    
     # Load model and tokenizer
     print("Loading model and tokenizer...")
     model_name = "finiteautomata/bertweet-base-sentiment-analysis"
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForSequenceClassification.from_pretrained(model_name)
     
+    # Memory after model load
+    model_memory = measure_memory()
+    model_increase = model_memory - initial_memory
+    print(f"Memory after model loading: {model_memory:.2f} MB (increase: {model_increase:.2f} MB)")
+    
     # Limit reviews to requested sample size
     reviews_to_process = reviews[:num_samples]
     print(f"Processing {len(reviews_to_process)} reviews")
     
-    # Memory before processing
-    memory_before = measure_memory()
-    print(f"Memory before processing: {memory_before:.2f} MB")
-    
-    # Process reviews with CPU monitoring
+    # Process reviews with CPU and memory monitoring
     results = monitor_cpu_during_processing(reviews_to_process, tokenizer, model)
     
     # Extract results
@@ -184,10 +205,7 @@ def run_single_benchmark(threads, reviews, num_samples=500):
     token_counts = results["token_counts"]
     total_time = results["total_time"]
     cpu_metrics = results["cpu_metrics"]
-    
-    # Memory after processing
-    memory_after = measure_memory()
-    memory_increase = memory_after - memory_before
+    memory_metrics = results["memory_metrics"]
     
     # Calculate metrics
     metrics = {
@@ -201,9 +219,10 @@ def run_single_benchmark(threads, reviews, num_samples=500):
         "total_tokens": sum(token_counts),
         "throughput_tokens_per_second": sum(token_counts) / total_time,
         "throughput_reviews_per_second": len(reviews_to_process) / total_time,
-        "memory_before_mb": memory_before,
-        "memory_after_mb": memory_after,
-        "memory_increase_mb": memory_increase,
+        "initial_memory_mb": initial_memory,
+        "model_memory_mb": model_memory,
+        "peak_memory_mb": memory_metrics["peak_memory_mb"],
+        "memory_increase_mb": memory_metrics["memory_increase_mb"],
         "num_cpu_cores": cpu_metrics["num_cpus"],
         "active_cpu_cores": cpu_metrics["active_cores"],
         "avg_core_usage": cpu_metrics["avg_usage"],
@@ -217,19 +236,19 @@ def run_single_benchmark(threads, reviews, num_samples=500):
     print(f"  Total time: {metrics['total_time']:.2f} seconds")
     print(f"  Average time per sample: {metrics['avg_time_per_sample']:.4f} seconds")
     print(f"  Throughput: {metrics['throughput_tokens_per_second']:.2f} tokens/second")
-    print(f"  Memory usage: {memory_before:.1f} MB → {memory_after:.1f} MB (increase: {memory_increase:.1f} MB)")
-    print(f"  CPU samples collected: {metrics['cpu_samples_collected']}")
+    
+    # Print memory metrics
+    print("\nMemory Usage:")
+    print(f"  Initial memory: {metrics['initial_memory_mb']:.2f} MB")
+    print(f"  After model load: {metrics['model_memory_mb']:.2f} MB")
+    print(f"  Peak memory during processing: {metrics['peak_memory_mb']:.2f} MB")
+    print(f"  Memory increase: {metrics['memory_increase_mb']:.2f} MB")
+    
+    # Print CPU metrics
+    print("\nCPU Utilization:")
     print(f"  CPU cores: {metrics['active_cpu_cores']} active out of {metrics['num_cpu_cores']} total")
     print(f"  Average core usage: {metrics['avg_core_usage']:.2f}%")
     print(f"  Maximum core usage: {metrics['max_core_usage']:.2f}%")
-    
-    # Print per-core usage
-    print("  Per-core usage (%):", end=" ")
-    for i, usage in enumerate(metrics['per_core_usage']):
-        if i > 0 and i % 4 == 0:  # Line break every 4 cores for readability
-            print("\n                       ", end=" ")
-        print(f"Core {i}: {usage:.1f}%", end="  ")
-    print("\n")
     
     # Save metrics to a file
     result_file = f"benchmark_threads_{threads}.csv"
@@ -274,7 +293,7 @@ def plot_results(all_metrics):
     throughputs = [m["throughput_tokens_per_second"] for m in all_metrics]
     active_cores = [m["active_cpu_cores"] for m in all_metrics]
     core_usage = [m["avg_core_usage"] for m in all_metrics]
-    max_core_usage = [m["max_core_usage"] for m in all_metrics]
+    memory_increase = [m["memory_increase_mb"] for m in all_metrics]
     
     # Find baseline (1 thread)
     baseline_idx = next((i for i, m in enumerate(all_metrics) if m["threads"] == 1), 0)
@@ -283,20 +302,20 @@ def plot_results(all_metrics):
     # Calculate speedup
     speedups = [base_time / t for t in times]
     
-    # Create figure with subplots (3x2 grid)
+    # Create figure with subplots
     fig, axs = plt.subplots(3, 2, figsize=(14, 15))
     
     # Plot 1: Processing Time
     axs[0, 0].plot(threads, times, 'o-', linewidth=2, color='blue')
     axs[0, 0].set_title('Processing Time vs. Thread Count')
-    axs[0, 0].set_xlabel('Threads (intra=inter)')
+    axs[0, 0].set_xlabel('Threads Count')
     axs[0, 0].set_ylabel('Time (seconds)')
     axs[0, 0].grid(True)
     
     # Plot 2: Throughput
     axs[0, 1].plot(threads, throughputs, 'o-', color='green', linewidth=2)
     axs[0, 1].set_title('Throughput vs. Thread Count')
-    axs[0, 1].set_xlabel('Threads (intra=inter)')
+    axs[0, 1].set_xlabel('Threads Count')
     axs[0, 1].set_ylabel('Tokens per Second')
     axs[0, 1].grid(True)
     
@@ -304,43 +323,40 @@ def plot_results(all_metrics):
     axs[1, 0].plot(threads, speedups, 'o-', color='red', linewidth=2, label="Actual Speedup")
     axs[1, 0].plot(threads, threads, '--', color='gray', linewidth=1, label="Perfect Scaling")
     axs[1, 0].set_title('Speedup vs. Thread Count')
-    axs[1, 0].set_xlabel('Threads (intra=inter)')
+    axs[1, 0].set_xlabel('Threads Count')
     axs[1, 0].set_ylabel('Speedup Factor')
     axs[1, 0].grid(True)
     axs[1, 0].legend()
     
-    # Plot 4: Efficiency (Speedup/Threads)
-    efficiency = [s/t for s, t in zip(speedups, threads)]
-    axs[1, 1].plot(threads, efficiency, 'o-', color='purple', linewidth=2)
-    axs[1, 1].set_title('Scaling Efficiency vs. Thread Count')
-    axs[1, 1].set_xlabel('Threads (intra=inter)')
-    axs[1, 1].set_ylabel('Efficiency (Speedup/Threads)')
+    # Plot 4: CPU Core Usage
+    axs[1, 1].plot(threads, core_usage, 'o-', color='purple', linewidth=2)
+    axs[1, 1].set_title('Average CPU Core Usage vs. Thread Count')
+    axs[1, 1].set_xlabel('Threads Count')
+    axs[1, 1].set_ylabel('Average Core Usage (%)')
     axs[1, 1].grid(True)
     
     # Plot 5: Active CPU Cores
     axs[2, 0].plot(threads, active_cores, 'o-', color='orange', linewidth=2)
     axs[2, 0].set_title('Active CPU Cores vs. Thread Count')
-    axs[2, 0].set_xlabel('Threads (intra=inter)')
+    axs[2, 0].set_xlabel('Threads Count')
     axs[2, 0].set_ylabel('Number of Active Cores')
     axs[2, 0].grid(True)
     
-    # Plot 6: Core Usage
-    axs[2, 1].plot(threads, core_usage, 'o-', color='brown', linewidth=2, label='Average')
-    axs[2, 1].plot(threads, max_core_usage, 'o--', color='red', linewidth=2, label='Maximum')
-    axs[2, 1].set_title('CPU Core Usage vs. Thread Count')
-    axs[2, 1].set_xlabel('Threads (intra=inter)')
-    axs[2, 1].set_ylabel('Core Usage (%)')
+    # Plot 6: Memory Increase
+    axs[2, 1].plot(threads, memory_increase, 'o-', color='brown', linewidth=2)
+    axs[2, 1].set_title('Memory Increase vs. Thread Count')
+    axs[2, 1].set_xlabel('Threads Count')
+    axs[2, 1].set_ylabel('Memory Increase (MB)')
     axs[2, 1].grid(True)
-    axs[2, 1].legend()
     
     plt.tight_layout()
-    plt.savefig('equal_thread_scaling.png')
-    print("Results plots saved to 'equal_thread_scaling.png'")
+    plt.savefig('thread_scaling_results.png')
+    print("Results plots saved to 'thread_scaling_results.png'")
     
     # Create detailed summary
-    print("\nEqual Thread Configuration Performance Summary:")
+    print("\nThread Configuration Performance Summary:")
     print("="*100)
-    print(f"{'Threads':<8} {'Time (s)':<10} {'Throughput':<15} {'Speedup':<10} {'Efficiency':<10} {'Active Cores':<15} {'Avg Core %':<10} {'Max Core %':<10}")
+    print(f"{'Threads':<8} {'Time(s)':<10} {'Throughput':<12} {'Speedup':<10} {'Efficiency':<10} {'Active Cores':<13} {'Mem Incr(MB)':<12}")
     print("-"*100)
     
     sorted_metrics = sorted(all_metrics, key=lambda m: m["threads"])
@@ -350,14 +366,14 @@ def plot_results(all_metrics):
         efficiency = speedup / m["threads"] if m["threads"] > 0 else 0
         
         print(f"{m['threads']:<8} {m['total_time']:<10.2f} "
-              f"{m['throughput_tokens_per_second']:<15.2f} {speedup:<10.2f}x {efficiency:<10.2f} "
-              f"{m['active_cpu_cores']:<15d} {m['avg_core_usage']:<10.2f}% {m['max_core_usage']:<10.2f}%")
+              f"{m['throughput_tokens_per_second']:<12.2f} {speedup:<10.2f}x {efficiency:<10.2f} "
+              f"{m['active_cpu_cores']:<13d} {m['memory_increase_mb']:<12.2f}")
     
     print("="*100)
     
     # Save all metrics to CSV
-    pd.DataFrame(all_metrics).to_csv('equal_thread_results.csv', index=False)
-    print("Full results saved to 'equal_thread_results.csv'")
+    pd.DataFrame(all_metrics).to_csv('thread_benchmark_results.csv', index=False)
+    print("Full results saved to 'thread_benchmark_results.csv'")
 
 def main():
     parser = argparse.ArgumentParser(description="PyTorch Equal Thread Configuration Benchmark")
@@ -384,7 +400,7 @@ def main():
         return 0
     
     # Multi-configuration benchmark mode
-    print("Starting PyTorch Equal Thread Scaling Benchmark")
+    print("Starting PyTorch Thread Scaling Benchmark")
     print(f"Data file: {args.data}")
     print(f"Samples per test: {args.samples}")
     
