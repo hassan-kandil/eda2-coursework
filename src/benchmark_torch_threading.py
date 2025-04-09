@@ -353,6 +353,71 @@ def plot_results(all_metrics):
     plt.savefig('thread_scaling_results.png')
     print("Results plots saved to 'thread_scaling_results.png'")
     
+    # Save individual plots to separate files
+    # Plot 1: Processing Time
+    plt.figure(figsize=(8, 6))
+    plt.plot(threads, times, 'o-', linewidth=2, color='blue')
+    plt.title('Processing Time vs. Thread Count')
+    plt.xlabel('Threads Count')
+    plt.ylabel('Time (seconds)')
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig('plot1_processing_time.png')
+    
+    # Plot 2: Throughput
+    plt.figure(figsize=(8, 6))
+    plt.plot(threads, throughputs, 'o-', color='green', linewidth=2)
+    plt.title('Throughput vs. Thread Count')
+    plt.xlabel('Threads Count')
+    plt.ylabel('Tokens per Second')
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig('plot2_throughput.png')
+    
+    # Plot 3: Speedup vs. Perfect Scaling
+    plt.figure(figsize=(8, 6))
+    plt.plot(threads, speedups, 'o-', color='red', linewidth=2, label="Actual Speedup")
+    plt.plot(threads, threads, '--', color='gray', linewidth=1, label="Perfect Scaling")
+    plt.title('Speedup vs. Thread Count')
+    plt.xlabel('Threads Count')
+    plt.ylabel('Speedup Factor')
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig('plot3_speedup.png')
+    
+    # Plot 4: CPU Core Usage
+    plt.figure(figsize=(8, 6))
+    plt.plot(threads, core_usage, 'o-', color='purple', linewidth=2)
+    plt.title('Average CPU Core Usage vs. Thread Count')
+    plt.xlabel('Threads Count')
+    plt.ylabel('Average Core Usage (%)')
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig('plot4_cpu_usage.png')
+    
+    # Plot 5: Active CPU Cores
+    plt.figure(figsize=(8, 6))
+    plt.plot(threads, active_cores, 'o-', color='orange', linewidth=2)
+    plt.title('Active CPU Cores vs. Thread Count')
+    plt.xlabel('Threads Count')
+    plt.ylabel('Number of Active Cores')
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig('plot5_active_cores.png')
+    
+    # Plot 6: Memory Increase
+    plt.figure(figsize=(8, 6))
+    plt.plot(threads, memory_increase, 'o-', color='brown', linewidth=2)
+    plt.title('Memory Increase vs. Thread Count')
+    plt.xlabel('Threads Count')
+    plt.ylabel('Memory Increase (MB)')
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig('plot6_memory_increase.png')
+    
+    print("Individual plot files have been saved.")
+    
     # Create detailed summary
     print("\nThread Configuration Performance Summary:")
     print("="*100)
@@ -374,6 +439,7 @@ def plot_results(all_metrics):
     # Save all metrics to CSV
     pd.DataFrame(all_metrics).to_csv('thread_benchmark_results.csv', index=False)
     print("Full results saved to 'thread_benchmark_results.csv'")
+
 
 def main():
     parser = argparse.ArgumentParser(description="PyTorch Equal Thread Configuration Benchmark")

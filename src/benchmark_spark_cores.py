@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 import argparse
 import matplotlib.pyplot as plt
+import subprocess
 from tqdm import tqdm
 
 # PySpark imports
@@ -35,33 +36,6 @@ import sentiment_analysis.process as process
 # PyTorch and transformers imports
 import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
-
-# Define schema for sentiment analysis results
-sentiment_schema = StructType(
-    [
-        StructField("review_text", StringType(), True),
-        StructField("sentiment", StringType(), True),
-        StructField("score", FloatType(), True),
-    ]
-)
-
-
-def setup_logging():
-    """Set up logging configuration"""
-    import logging
-
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(message)s",
-        handlers=[
-            logging.StreamHandler(),
-        ],
-    )
-    return logging.getLogger("spark_benchmark")
-
-
-logger = setup_logging()
-
 
 def measure_memory():
     """Measure current process memory usage"""
@@ -101,30 +75,44 @@ def load_data(spark, file_path, limit=None):
     return reviews_df
 
 
-def run_spark_benchmark(spark, data_df, num_cores):
+def run_spark_benchmark(data_file, num_cores, num_samples):
     """Run a benchmark with the specified number of Spark cores"""
     logger.info(f"\n=== Testing with {num_cores} Spark cores (PyTorch threads=1) ===")
-
-    # Configure Spark to use the specified number of cores
-    spark.conf.set("spark.cores.max", str(num_cores))
-
+    
+    # Create a new SparkSession with the correct core count
+    spark_session = (
+        SparkSession.builder.appName(f"SparkCoreScalingBenchmark{num_cores}")
+        .config("spark.cores.max", str(num_cores))
+        .getOrCreate()
+    )
+    
     # Log the actual configuration
-    actual_cores = spark.conf.get("spark.cores.max")
+    actual_cores = spark_session.conf.get("spark.cores.max")
     logger.info(f"Actual spark.cores.max: {actual_cores}")
-
+    
+    # Load data
+    data_df = load_data(spark_session, data_file, num_samples)
+    logger.info(f"Loaded {data_df.count()} reviews for processing")
+    
     # Repartition the DataFrame to match the number of cores
     reviews_df = data_df.repartition(num_cores)
     logger.info(f"Repartitioned DataFrame to {num_cores} partitions")
-
+    
+    # Load model and tokenizer
+    tokenizer, model = load_model()
+    # Broadcast model and tokenizer to all workers
+    process.bc_tokenizer = spark_session.sparkContext.broadcast(tokenizer)
+    process.bc_model = spark_session.sparkContext.broadcast(model)
+    
     # Memory before processing
     memory_before = measure_memory()
     logger.info(f"Memory before processing: {memory_before:.2f} MB")
-
+    
     # Apply sentiment analysis
     sentiment_results_df = reviews_df.withColumn(
         "result", process.batch_sentiment_analysis(reviews_df["text"])
     )
-
+    
     # Flatten the result column and force execution
     results_df = sentiment_results_df.select(
         col("asin"),
@@ -133,27 +121,27 @@ def run_spark_benchmark(spark, data_df, num_cores):
         col("result.sentiment"),
         col("result.score"),
     )
-
+    
     # Count to force execution of the entire pipeline
     total_results = results_df.count()
-
+    
     # Start timing
     start_time = time.time()
-
+    
     # Write results to csv
     output_path = f"/analysis_outputs/cores_{num_cores}_results.csv"
     logger.info(f"Writing results to {output_path}")
-    sentiment_results_df.write.option("header", "true").mode("overwrite").csv(
+    results_df.write.option("header", "true").mode("overwrite").csv(
         output_path
     )
     # End timing
     end_time = time.time()
     total_time = end_time - start_time
-
+    
     # Memory after processing
     memory_after = measure_memory()
     memory_increase = memory_after - memory_before
-
+    
     # Calculate metrics
     metrics = {
         "cores": num_cores,
@@ -164,7 +152,7 @@ def run_spark_benchmark(spark, data_df, num_cores):
         "memory_after_mb": memory_after,
         "memory_increase_mb": memory_increase,
     }
-
+    
     # Print results
     logger.info(f"Results for {num_cores} cores:")
     logger.info(f"  Total time: {metrics['total_time']:.2f} seconds")
@@ -174,13 +162,18 @@ def run_spark_benchmark(spark, data_df, num_cores):
     logger.info(
         f"  Memory: {memory_before:.1f} MB → {memory_after:.1f} MB (increase: {memory_increase:.1f} MB)"
     )
-
+    
     # Save metrics to file
     metrics_file = f"spark_benchmark_cores_{num_cores}.csv"
     pd.DataFrame([metrics]).to_csv(metrics_file, index=False)
     logger.info(f"Metrics saved to {metrics_file}")
+    # Stop this Spark session
+    spark_session.stop()
+    # Allow JVM to clean up resources
+    time.sleep(2)
 
     return metrics
+    
 
 
 def plot_results(all_metrics):
@@ -323,22 +316,8 @@ def main():
 
     args = parser.parse_args()
 
-    # Check if data file exists
-    if not os.path.exists(args.data):
-        logger.error(f"Error: Data file not found: {args.data}")
-        return 1
-
     # Parse core counts
     core_counts = [int(c) for c in args.cores.split(",")]
-
-    # Initialize a SparkSession
-    # Start with 1 core and we'll adjust for each test
-    logger.info("Starting Spark session...")
-    spark = (
-        SparkSession.builder.appName("SparkCoreScalingBenchmark")
-        .config("spark.cores.max", "1")
-        .getOrCreate()
-    )
 
     # Always set PyTorch threads to 1
     torch.set_num_threads(1)
@@ -347,23 +326,12 @@ def main():
         f"Fixed PyTorch threads to 1 (get_num_threads={torch.get_num_threads()}, get_num_interop_threads={torch.get_num_interop_threads()})"
     )
 
-    # Load data
-    data_df = load_data(spark, args.data, args.samples)
-
-    logger.info(f"Loaded {data_df.count()} reviews for processing")
-    # Load model and tokenizer
-    tokenizer, model = load_model()
-    # Broadcast model and tokenizer to all workers
-    if process.bc_model is None:
-        logger.info("Broadcasting model and tokenizer to all workers")
-        process.bc_tokenizer = spark.sparkContext.broadcast(tokenizer)
-        process.bc_model = spark.sparkContext.broadcast(model)
 
     # Run benchmarks for each core count
     all_metrics = []
 
     for cores in core_counts:
-        metrics = run_spark_benchmark(spark, data_df, cores)
+        metrics = run_spark_benchmark(args.data, cores, args.samples)
         if metrics:
             all_metrics.append(metrics)
 
@@ -372,9 +340,6 @@ def main():
 
     # Generate plots and summary
     plot_results(all_metrics)
-
-    # Stop Spark session
-    spark.stop()
 
     return 0
 
