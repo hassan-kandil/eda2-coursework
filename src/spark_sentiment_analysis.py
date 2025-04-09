@@ -5,9 +5,37 @@ from pyspark.sql import SparkSession
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col
 from sentiment_analysis.config import logger
-from sentiment_analysis.utils import run_command
+from sentiment_analysis.utils import delete_local_file, run_command
 from sentiment_analysis.load import load_amazon_reviews, load_model
 import sentiment_analysis.process as process
+
+
+def merge_results_csv_in_hdfs(read_hdfs_path, write_hdfs_path, csv_file_name):
+    logger.info(f"WRITING ANALYSIS SUMMARY OUTPUT {csv_file_name} TO HDFS...")
+    final_path = f"{write_hdfs_path}/{csv_file_name}.csv"
+    temp_csv_path = "/tmp/merged_results.csv"
+    # Merge csv files from hdfs and save them locally
+    merge_command = [
+        "/home/almalinux/hadoop-3.4.0/bin/hdfs",
+        "dfs",
+        "-getmerge",
+        f"{read_hdfs_path}/part-*.csv",
+        temp_csv_path,
+    ]
+    run_command(merge_command)
+
+    # Upload the merged csv to hdfs
+    upload_command = [
+        "/home/almalinux/hadoop-3.4.0/bin/hdfs",
+        "dfs",
+        "-put",
+        "-f",
+        temp_csv_path,
+        final_path,
+    ]
+    run_command(upload_command)
+    # Remove the local merged file
+    delete_local_file(temp_csv_path)
 
 
 def write_df_to_hdfs_csv(df, hdfs_path, csv_file_name):
@@ -59,10 +87,15 @@ if __name__ == "__main__":
         col("result.score"),
     )
     start_time = time.time()
-    sentiment_results_df.write.mode("overwrite").parquet(output_path)
+    sentiment_results_df.write.option("header", "true").mode("overwrite").csv(
+        output_path
+    )
     end_time = time.time()
     logger.info(f"Done processing all reviews in {end_time - start_time:.2f} seconds")
     # Combine results into a single csv file
+    merge_results_csv_in_hdfs(
+        output_path, "/summary_outputs", "sentiment_analysis_results"
+    )
     # Read the Parquet files
     df = spark.read.parquet(output_path).coalesce(1)
     # Write to CSV
