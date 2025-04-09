@@ -1,0 +1,2 @@
+cores,total_samples,total_time,throughput_samples_per_second,memory_before_mb,memory_after_mb,memory_increase_mb
+1,1000,191.58257031440735,5.219681510478191,1007.5078125,1007.5078125,0.0

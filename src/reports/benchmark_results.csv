@@ -1,0 +1,2 @@
+num_threads,total_samples,total_time,avg_time_per_sample,max_time_per_sample,min_time_per_sample,avg_tokens,total_tokens,throughput_tokens_per_second,throughput_reviews_per_second,memory_before_mb,memory_after_mb,memory_increase_mb,cpu_percent
+1,1000,181.61926913261414,0.18139879274368287,0.27510929107666016,0.1664566993713379,55.401,55401,305.0392189363315,5.506023698783984,1401.1484375,1027.1328125,-374.015625,26.5
