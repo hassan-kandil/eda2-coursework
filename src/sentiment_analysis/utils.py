@@ -1,5 +1,7 @@
 # Generate random UUID function
 import os
+import math
+
 from subprocess import PIPE, Popen
 import uuid
 
@@ -34,3 +36,7 @@ def delete_local_file(file_path):
 
 def generate_uuid():
     return str(uuid.uuid4())
+
+
+def round_up_to_multiple(n, multiple):
+    return int(math.ceil(n / multiple) * multiple)
