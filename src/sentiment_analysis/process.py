@@ -176,7 +176,7 @@ def repartition_dataset(
 
     # Repartition the DataFrame
     logger.info(
-        f"Repartitioning DataFrame into {num_partitions} partitions based on {file_size_mb}MB file size and {target_partition_size_mb}MB target partition size..."
+        f"Repartitioning DataFrame into {num_partitions} partitions based on {file_size_mb:.2f}MB file size and {target_partition_size_mb}MB target partition size..."
     )
     repartitioned_df = reviews_df.repartition(num_partitions)
     logger.info(
