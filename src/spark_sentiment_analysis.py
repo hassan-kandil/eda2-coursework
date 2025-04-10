@@ -46,7 +46,7 @@ if __name__ == "__main__":
     reviews_df = load_amazon_reviews(spark, input_path)
     # Count total reviews
     total_reviews = reviews_df.count()
-    logger.info(f"Starting to process all {total_reviews:,} reviews")
+    logger.info(f"Starting to handle all {total_reviews:,} reviews")
     # Load model and tokenizer
     tokenizer, model = load_model()
     # Broadcast model and tokenizer to all workers
@@ -55,13 +55,34 @@ if __name__ == "__main__":
         process.bc_tokenizer = spark.sparkContext.broadcast(tokenizer)
         process.bc_model = spark.sparkContext.broadcast(model)
 
+    # Repartition the DataFrame for optimal processing
+    target_partition_size_mb = 128
+    reviews_df = process.repartition_dataset(
+        spark, input_path, reviews_df, target_partition_size_mb
+    )
+    # Process reviews for sentiment analysis
+    logger.info("Starting to process reviews for sentiment analysis...")
     start_time = time.time()
     process.process_reviews(reviews_df=reviews_df, output_path=output_path)
     end_time = time.time()
     logger.info(f"Done processing all reviews in {end_time - start_time:.2f} seconds")
     # Combine results into a single csv file
+    logger.info("Merging results into a single CSV file...")
+    merge_start_time = time.time()
     merge_results_csv_in_hdfs(
         output_path, "/summary_outputs", "sentiment_analysis_results"
     )
+    merge_end_time = time.time()
+    logger.info(
+        f"Done merging results in {merge_end_time - merge_start_time:.2f} seconds"
+    )
+    # Clean up temporary files
+    logger.info("Cleaning up temporary files...")
+    # Add explicit unpersist for cached DataFrames
+    reviews_df.unpersist()
+
+    # Clear broadcasted variables when done
+    process.bc_tokenizer.unpersist()
+    process.bc_model.unpersist()
     # Stop Spark session
     spark.stop()
