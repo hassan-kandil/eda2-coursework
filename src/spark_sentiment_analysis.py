@@ -1,8 +1,6 @@
 import time
 
 from pyspark.sql import SparkSession
-
-from pyspark.sql import SparkSession
 from sentiment_analysis.config import logger
 from sentiment_analysis.utils import delete_local_file, run_command
 from sentiment_analysis.load import load_amazon_reviews, load_model

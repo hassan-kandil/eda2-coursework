@@ -26,6 +26,31 @@ sentiment_schema = StructType(
 bc_tokenizer, bc_model = None, None
 
 
+def _set_torch_threading(num_threads=1):
+    """
+    Set the number of threads for PyTorch to use.
+    Args:
+        num_threads: Number of threads to use (default is 1)
+    """
+    current_num_threads, current_num_interop_threads = (
+        torch.get_num_threads(),
+        torch.get_num_interop_threads(),
+    )
+    logger.info(
+        f"Current PyTorch threading settings: {current_num_threads} threads, {current_num_interop_threads} interop threads"
+    )
+    if current_num_threads != num_threads:
+        torch.set_num_threads(num_threads)
+        logger.info(f"Set PyTorch to use {num_threads} threads.")
+    if current_num_interop_threads != num_threads:
+        torch.set_num_interop_threads(num_threads)
+        logger.info(f"Set PyTorch to use {num_threads} interop threads.")
+
+    logger.info(
+        f"Updated PyTorch threading settings: {torch.get_num_threads()} threads, {torch.get_num_interop_threads()} interop threads"
+    )
+
+
 @pandas_udf(sentiment_schema)
 def _batch_sentiment_analysis(review_texts: pd.Series) -> pd.DataFrame:
     """
@@ -48,6 +73,9 @@ def _batch_sentiment_analysis(review_texts: pd.Series) -> pd.DataFrame:
         # Load the tokenizer and model
         tokenizer, model = load_model()
     model.eval()  # Set model to evaluation mode
+
+    # Set the number of threads for PyTorch
+    _set_torch_threading(num_threads=1)
 
     results = []
     # Process each review
