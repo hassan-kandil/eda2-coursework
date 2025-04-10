@@ -1,0 +1,86 @@
+Spark Partition Count Benchmark Summary
+=====================================
+
+Total reviews processed: 1686.0
+Optimal target partition size: 4.0 MB
+Optimal number of partitions: 16.0
+
+Detailed Results:
+-----------------
+Target Partition Count: 2.0 MB
+  Actual Partitions: 2
+  Reviews per partition: 843
+  Process Time: 165.59 seconds
+  Total Time: 165.71 seconds
+  Throughput: 10.18 reviews/second
+
+Target Partition Count: 3.0 MB
+  Actual Partitions: 3
+  Reviews per partition: 562
+  Process Time: 113.79 seconds
+  Total Time: 113.87 seconds
+  Throughput: 14.82 reviews/second
+
+Target Partition Count: 4.0 MB
+  Actual Partitions: 4
+  Reviews per partition: 421
+  Process Time: 87.00 seconds
+  Total Time: 87.08 seconds
+  Throughput: 19.38 reviews/second
+
+Target Partition Count: 6.0 MB
+  Actual Partitions: 6
+  Reviews per partition: 281
+  Process Time: 106.32 seconds
+  Total Time: 106.43 seconds
+  Throughput: 15.86 reviews/second
+
+Target Partition Count: 8.0 MB
+  Actual Partitions: 8
+  Reviews per partition: 210
+  Process Time: 84.05 seconds
+  Total Time: 84.15 seconds
+  Throughput: 20.06 reviews/second
+
+Target Partition Count: 10.0 MB
+  Actual Partitions: 10
+  Reviews per partition: 168
+  Process Time: 97.29 seconds
+  Total Time: 97.38 seconds
+  Throughput: 17.33 reviews/second
+
+Target Partition Count: 12.0 MB
+  Actual Partitions: 12
+  Reviews per partition: 140
+  Process Time: 83.34 seconds
+  Total Time: 83.47 seconds
+  Throughput: 20.23 reviews/second
+
+Target Partition Count: 16.0 MB
+  Actual Partitions: 16
+  Reviews per partition: 105
+  Process Time: 82.99 seconds
+  Total Time: 83.10 seconds
+  Throughput: 20.32 reviews/second
+
+Target Partition Count: 32.0 MB
+  Actual Partitions: 32
+  Reviews per partition: 52
+  Process Time: 83.59 seconds
+  Total Time: 83.72 seconds
+  Throughput: 20.17 reviews/second
+
+Target Partition Count: 64.0 MB
+  Actual Partitions: 64
+  Reviews per partition: 26
+  Process Time: 87.07 seconds
+  Total Time: 87.21 seconds
+  Throughput: 19.36 reviews/second
+
+Target Partition Count: 128.0 MB
+  Actual Partitions: 128
+  Reviews per partition: 13
+  Process Time: 89.98 seconds
+  Total Time: 90.28 seconds
+  Throughput: 18.74 reviews/second
+

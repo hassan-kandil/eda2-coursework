@@ -1,0 +1,30 @@
+Spark Partition Size Benchmark Summary
+=====================================
+
+Total reviews processed: 16216.0
+Optimal target partition size: 4.0 MB
+Optimal number of partitions: 3.0
+
+Detailed Results:
+-----------------
+Target Partition Size: 2.0 MB
+  Actual Partitions: 5
+  Reviews per partition: 3243
+  Process Time: 1224.58 seconds
+  Total Time: 1225.08 seconds
+  Throughput: 13.24 reviews/second
+
+Target Partition Size: 4.0 MB
+  Actual Partitions: 3
+  Reviews per partition: 5405
+  Process Time: 1063.96 seconds
+  Total Time: 1064.14 seconds
+  Throughput: 15.24 reviews/second
+
+Target Partition Size: 8.0 MB
+  Actual Partitions: 2
+  Reviews per partition: 8108
+  Process Time: 1513.88 seconds
+  Total Time: 1514.02 seconds
+  Throughput: 10.71 reviews/second
+
