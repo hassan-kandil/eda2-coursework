@@ -1,44 +1,22 @@
+import sys
 import time
+
+
+import sentiment_analysis.process as process
+import sentiment_analysis.preprocess as preprocess
+import sentiment_analysis.postprocess as postprocess
 
 from pyspark.sql import SparkSession
 from sentiment_analysis.config import logger
-from sentiment_analysis.utils import delete_local_file, run_command
 from sentiment_analysis.load import load_amazon_reviews, load_model
-import sentiment_analysis.process as process
-import sentiment_analysis.preprocess as preprocess
 
 
-def merge_results_csv_in_hdfs(read_hdfs_path, write_hdfs_path, csv_file_name):
-    logger.info(f"WRITING ANALYSIS SUMMARY OUTPUT {csv_file_name} TO HDFS...")
-    final_path = f"{write_hdfs_path}/{csv_file_name}.csv"
-    temp_csv_path = "/tmp/merged_results.csv"
-    # Merge csv files from hdfs and save them locally
-    merge_command = [
-        "/home/almalinux/hadoop-3.4.0/bin/hdfs",
-        "dfs",
-        "-getmerge",
-        f"{read_hdfs_path}/part-*.csv",
-        temp_csv_path,
-    ]
-    run_command(merge_command)
-
-    # Upload the merged csv to hdfs
-    upload_command = [
-        "/home/almalinux/hadoop-3.4.0/bin/hdfs",
-        "dfs",
-        "-put",
-        "-f",
-        temp_csv_path,
-        final_path,
-    ]
-    run_command(upload_command)
-    # Remove the local merged file
-    delete_local_file(temp_csv_path)
-    logger.info(f"Successfully wrote {csv_file_name} to HDFS at {final_path}")
-
-
-if __name__ == "__main__":
-    input_path, output_path = "/Subscription_Boxes.jsonl", "/analysis_outputs"
+def main():
+    input_path, analysis_output_path, summary_output_path = (
+        "/Subscription_Boxes.jsonl",
+        "/analysis_outputs",
+        "/summary_outputs",
+    )
     # Initialize Spark session
     spark = SparkSession.builder.appName("SentimentAnalysis").getOrCreate()
     # Load the dataset
@@ -72,9 +50,9 @@ if __name__ == "__main__":
     # Process reviews for sentiment analysis
     logger.info("Starting to process reviews for sentiment analysis...")
     start_time = time.time()
-    process.process_reviews(
+    sentiment_analysis_results_df = process.process_reviews(
         reviews_df=reviews_df,
-        output_path=output_path,
+        output_path=analysis_output_path,
         review_text_column="preprocessed_text",
     )
     end_time = time.time()
@@ -82,20 +60,34 @@ if __name__ == "__main__":
     # Combine results into a single csv file
     logger.info("Merging results into a single CSV file...")
     merge_start_time = time.time()
-    merge_results_csv_in_hdfs(
-        output_path, "/summary_outputs", "sentiment_analysis_results"
+    postprocess.merge_results_csv_in_hdfs(
+        analysis_output_path, summary_output_path, "sentiment_analysis_full_results"
     )
     merge_end_time = time.time()
     logger.info(
         f"Done merging results in {merge_end_time - merge_start_time:.2f} seconds"
     )
+    # Generate sentiment statistics
+    logger.info("Generating sentiment statistics...")
+    generate_stats_start_time = time.time()
+    postprocess.generate_sentiment_statistics(
+        sentiment_analysis_results_df, summary_output_path
+    )
+    generate_stats_end_time = time.time()
+    logger.info(
+        f"Done generating sentiment statistics in {generate_stats_end_time - generate_stats_start_time:.2f} seconds"
+    )
     # Clean up temporary files
     logger.info("Cleaning up temporary files...")
     # Add explicit unpersist for cached DataFrames
     reviews_df.unpersist()
-
+    sentiment_analysis_results_df.unpersist()
     # Clear broadcasted variables when done
     process.bc_tokenizer.unpersist()
     process.bc_model.unpersist()
     # Stop Spark session
     spark.stop()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -40,3 +40,40 @@ def generate_uuid():
 
 def round_up_to_multiple(n, multiple):
     return int(math.ceil(n / multiple) * multiple)
+
+
+def write_df_to_hdfs_csv(df, hdfs_path, csv_file_name):
+    logger.info(f"WRITING ANALYSIS SUMMARY OUTPUT {csv_file_name} TO HDFS...")
+    write_path = f"{hdfs_path}/{csv_file_name}"
+    df.write.option("header", "true").mode("overwrite").csv(write_path)
+    hdfs_mv_cmd = [
+        "/home/almalinux/hadoop-3.4.0/bin/hdfs",
+        "dfs",
+        "-mv",
+        write_path + "/part-00000-*.csv",
+        write_path + ".csv",
+    ]
+    run_command(hdfs_mv_cmd)
+    hdfs_rm_cmd = [
+        "/home/almalinux/hadoop-3.4.0/bin/hdfs",
+        "dfs",
+        "-rm",
+        "-r",
+        write_path,
+    ]
+    run_command(hdfs_rm_cmd)
+    logger.info(f"Successfully wrote {csv_file_name} to HDFS at {hdfs_path}")
+
+
+def upload_file_to_hdfs(local_file_path, hdfs_path):
+    logger.info(f"UPLOADING {local_file_path} TO HDFS...")
+    upload_command = [
+        "/home/almalinux/hadoop-3.4.0/bin/hdfs",
+        "dfs",
+        "-put",
+        "-f",
+        local_file_path,
+        hdfs_path,
+    ]
+    run_command(upload_command)
+    logger.info(f"Successfully uploaded {local_file_path} to HDFS at {hdfs_path}")

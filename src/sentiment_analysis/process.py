@@ -23,7 +23,7 @@ sentiment_schema = StructType(
 bc_tokenizer, bc_model = None, None
 
 
-def _set_torch_threading(num_threads=1):
+def _set_torch_threading(num_threads: int = 1):
     """
     Set the number of threads for PyTorch to use.
     Args:
@@ -119,7 +119,11 @@ def _batch_sentiment_analysis(review_texts: pd.Series) -> pd.DataFrame:
     return pd.DataFrame(results)
 
 
-def process_reviews(reviews_df, output_path, review_text_column="preprocessed_text"):
+def process_reviews(
+    reviews_df: pd.DataFrame,
+    output_path: str,
+    review_text_column: str = "preprocessed_text",
+) -> pd.DataFrame:
     """
     Process reviews DataFrame for sentiment analysis and save results to output path.
 
