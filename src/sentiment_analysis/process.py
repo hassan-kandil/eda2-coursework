@@ -16,7 +16,6 @@ from .config import logger
 # Define schema for sentiment analysis results
 sentiment_schema = StructType(
     [
-        StructField("text", StringType(), True),
         StructField("sentiment", StringType(), True),
         StructField("score", FloatType(), True),
     ]
