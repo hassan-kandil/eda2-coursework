@@ -5,6 +5,7 @@ from sentiment_analysis.config import logger
 from sentiment_analysis.utils import delete_local_file, run_command
 from sentiment_analysis.load import load_amazon_reviews, load_model
 import sentiment_analysis.process as process
+import sentiment_analysis.preprocess as preprocess
 
 
 def merge_results_csv_in_hdfs(read_hdfs_path, write_hdfs_path, csv_file_name):
@@ -55,13 +56,27 @@ if __name__ == "__main__":
 
     # Repartition the DataFrame for optimal processing
     target_partition_size_mb = 128
-    reviews_df = process.repartition_dataset(
+    reviews_df = preprocess.repartition_dataset(
         spark, input_path, reviews_df, target_partition_size_mb
+    )
+    # Preprocess the reviews
+    logger.info("Starting to preprocess reviews...")
+    start_time = time.time()
+    reviews_df = preprocess.preprocess_reviews(
+        reviews_df, text_column="text", output_column="preprocessed_text"
+    )
+    end_time = time.time()
+    logger.info(
+        f"Done preprocessing all reviews in {end_time - start_time:.2f} seconds"
     )
     # Process reviews for sentiment analysis
     logger.info("Starting to process reviews for sentiment analysis...")
     start_time = time.time()
-    process.process_reviews(reviews_df=reviews_df, output_path=output_path)
+    process.process_reviews(
+        reviews_df=reviews_df,
+        output_path=output_path,
+        review_text_column="preprocessed_text",
+    )
     end_time = time.time()
     logger.info(f"Done processing all reviews in {end_time - start_time:.2f} seconds")
     # Combine results into a single csv file
