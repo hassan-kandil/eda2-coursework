@@ -53,7 +53,7 @@ def repartition_dataset(
     file_size_mb = _get_hdfs_file_size_in_mb(spark.sparkContext, input_file_path)
     logger.info(f"Input file size: {file_size_mb:.2f} MB")
     # Calculate the number of partitions based on the target size
-    num_partitions = int(file_size_mb / (target_partition_size_mb))
+    num_partitions = max(1, int(file_size_mb / (target_partition_size_mb)))
 
     # Round up to the nearest multiple of the minimum number of partitions
     total_cores = spark.sparkContext.defaultParallelism
@@ -63,7 +63,7 @@ def repartition_dataset(
 
     # Repartition the DataFrame
     logger.info(
-        f"Repartitioning DataFrame into {num_partitions} partitions based on {file_size_mb}MB file size and {target_partition_size_mb}MB target partition size..."
+        f"Repartitioning DataFrame into {num_partitions} partitions based on {file_size_mb:.2f}MB file size and {target_partition_size_mb}MB target partition size..."
     )
     repartitioned_df = reviews_df.repartition(num_partitions)
     logger.info(
