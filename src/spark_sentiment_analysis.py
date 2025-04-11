@@ -38,7 +38,7 @@ def update_progress(stage, current=0, total=0, start_time=None):
         logger.info(f"Progress: {stage}")
 
 
-def track_batch(processed_count, batch_size=100):
+def track_batch(processed_count, batch_size=1000):
     """Returns a function to track progress in Spark partitions"""
 
     def _track_batch_fn(partition_index, iterator):
@@ -64,22 +64,24 @@ def monitor_progress_thread(processed_count, total_count, start_time, stop_event
         time.sleep(2)  # Check every 2 seconds
 
 
-def save_final_summary(total_reviews, total_duration):
+def save_final_summary(total_reviews, total_duration, process_duration):
     """Save the final summary and metrics to files."""
     # Save final summary to progress file
     with open(PROGRESS_FILE, "w") as f:
         f.write("COMPLETE!\n")
         f.write(f"Total reviews processed: {total_reviews}\n")
+        f.write(f"Total processing time: {total_duration:.1f} seconds\n")
+        f.write(f"Average processing speed: {total_reviews/total_duration:.1f} reviews/second\n")
         f.write(f"Total time: {total_duration:.1f} seconds\n")
-        f.write(f"Average speed: {total_reviews/total_duration:.1f} reviews/second\n")
 
     logger.info(f"Done! Processed {total_reviews} reviews in {total_duration:.1f} seconds")
 
     # Save basic metrics to a simple JSON file
     metrics = {
         "total_reviews": total_reviews,
+        "processing_time_seconds": process_duration,
+        "reviews_per_second": (total_reviews / process_duration if process_duration > 0 else 0),
         "total_time_seconds": total_duration,
-        "reviews_per_second": (total_reviews / total_duration if total_duration > 0 else 0),
         "completed_at": time.strftime("%Y-%m-%d %H:%M:%S"),
     }
 
@@ -155,12 +157,16 @@ def main():
     monitor_thread.start()
 
     # Process with tracking
+    process_start_time = time.time()
     sentiment_analysis_results_df = process.process_reviews(
         reviews_df=tracked_df,
         output_path=analysis_output_path,
         review_text_column="preprocessed_text",
     )
-
+    process_duration = time.time() - process_start_time
+    logger.info(
+        f"Sentiment analysis completed in {process_duration:.1f} seconds with average speed of {total_reviews / process_duration:.1f} reviews/second"
+    )
     # Stop the monitoring thread
     stop_monitor.set()
     monitor_thread.join(timeout=1.0)
@@ -191,7 +197,7 @@ def main():
     total_duration = overall_end_time - overall_start_time
 
     # Save final summary and metrics
-    save_final_summary(total_reviews, total_duration)
+    save_final_summary(total_reviews, total_duration, process_duration)
 
     # Stop Spark session
     spark.stop()
