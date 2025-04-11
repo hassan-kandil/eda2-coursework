@@ -146,3 +146,5 @@ def process_reviews(reviews_df, output_path, review_text_column="preprocessed_te
     sentiment_results_df.write.option("header", "true").mode("overwrite").csv(
         output_path
     )
+    logger.info(f"Sentiment analysis results saved to {output_path}")
+    return sentiment_results_df
