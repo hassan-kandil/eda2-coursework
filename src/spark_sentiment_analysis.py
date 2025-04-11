@@ -105,7 +105,7 @@ def main():
 
     # Load the dataset
     update_progress("Loading data", start_time=overall_start_time)
-    reviews_df = load_amazon_reviews(spark, input_path)
+    reviews_df = load_amazon_reviews(spark, input_path, 0.1)
 
     # Count total reviews
     total_reviews = reviews_df.count()
