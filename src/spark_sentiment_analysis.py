@@ -64,12 +64,14 @@ def monitor_progress_thread(processed_count, total_count, start_time, stop_event
         time.sleep(2)  # Check every 2 seconds
 
 
-def save_final_summary(total_reviews, total_duration, process_duration):
+def save_final_summary(total_reviews, total_duration, process_duration, partitions_count):
     """Save the final summary and metrics to files."""
     # Save final summary to progress file
     with open(PROGRESS_FILE, "w") as f:
         f.write("COMPLETE!\n")
         f.write(f"Total reviews processed: {total_reviews}\n")
+        f.write(f"Number of partitions: {partitions_count}\n")
+        f.write(f"Reviews per partition: {total_reviews // partitions_count}\n")
         f.write(f"Total processing time: {process_duration:.1f} seconds\n")
         f.write(f"Average processing speed: {total_reviews/process_duration:.1f} reviews/second\n")
         f.write(f"Total time: {total_duration:.1f} seconds\n")
@@ -79,6 +81,8 @@ def save_final_summary(total_reviews, total_duration, process_duration):
     # Save basic metrics to a simple JSON file
     metrics = {
         "total_reviews": total_reviews,
+        "partitions_count": partitions_count,
+        "reviews_per_partition": total_reviews // partitions_count,
         "processing_time_seconds": process_duration,
         "reviews_per_second": (total_reviews / process_duration if process_duration > 0 else 0),
         "total_time_seconds": total_duration,
@@ -167,6 +171,7 @@ def main():
     logger.info(
         f"Sentiment analysis completed in {process_duration:.1f} seconds with average speed of {total_reviews / process_duration:.1f} reviews/second"
     )
+    partitions_count = sentiment_analysis_results_df.rdd.getNumPartitions()
     # Stop the monitoring thread
     stop_monitor.set()
     monitor_thread.join(timeout=1.0)
@@ -197,7 +202,7 @@ def main():
     total_duration = overall_end_time - overall_start_time
 
     # Save final summary and metrics
-    save_final_summary(total_reviews, total_duration, process_duration)
+    save_final_summary(total_reviews, total_duration, process_duration, partitions_count)
 
     # Stop Spark session
     spark.stop()
