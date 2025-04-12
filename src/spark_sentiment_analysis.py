@@ -1,3 +1,4 @@
+import argparse
 import sys
 import time
 import json
@@ -14,6 +15,9 @@ from sentiment_analysis.load import load_amazon_reviews, load_model
 
 # Define progress file path as a constant
 PROGRESS_FILE = "/tmp/sentiment_analysis_progress.txt"
+
+# Define available datasets
+PREDEFINED_DATASETS = ["subscription_boxes", "magazine_subscriptions", "all_beauty", "appliances", "baby_products"]
 
 
 def update_progress(stage, current=0, total=0, start_time=None):
@@ -93,14 +97,44 @@ def save_final_summary(total_reviews, total_duration, process_duration, partitio
         json.dump(metrics, f, indent=2)
 
 
+def parse_arguments():
+    """Parse command line arguments"""
+    parser = argparse.ArgumentParser(description="Run sentiment analysis on Amazon reviews")
+
+    # Dataset selection
+    parser.add_argument(
+        "--dataset",
+        choices=[dataset.lower() for dataset in PREDEFINED_DATASETS],
+        required=True,
+        help="Predefined dataset to analyze",
+    )
+
+    # Additional options
+    parser.add_argument(
+        "--sample-ratio", type=float, default=1.0, help="Sample ratio (0.0-1.0) of the dataset to process"
+    )
+    parser.add_argument(
+        "--output-dir", type=str, default="/analysis_outputs", help="HDFS output directory for analysis results"
+    )
+    parser.add_argument(
+        "--summary-dir", type=str, default="/summary_outputs", help="HDFS output directory for summary results"
+    )
+
+    return parser.parse_args()
+
+
 def main():
+    """Main function to run the sentiment analysis"""
+    # Parse command line arguments
+    args = parse_arguments()
     overall_start_time = time.time()
 
-    input_path, analysis_output_path, summary_output_path = (
-        "/Subscription_Boxes.jsonl",
-        "/analysis_outputs",
-        "/summary_outputs",
-    )
+    dataset_name = args.dataset.lower()
+    # Transform dataset name to path format
+    path_name = "_".join(word.capitalize() for word in dataset_name.split("_"))
+    input_path = f"/{path_name}.jsonl"
+    # Set output paths
+    analysis_output_path, summary_output_path = args.output_dir, args.summary_dir
 
     # Create initial progress file
     update_progress("Starting up")
@@ -111,7 +145,7 @@ def main():
 
     # Load the dataset
     update_progress("Loading data", start_time=overall_start_time)
-    reviews_df = load_amazon_reviews(spark, input_path, 0.1)
+    reviews_df = load_amazon_reviews(spark, input_path, args.sample_ratio)
 
     # Count total reviews
     total_reviews = reviews_df.count()
