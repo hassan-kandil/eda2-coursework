@@ -70,8 +70,8 @@ def save_final_summary(total_reviews, total_duration, process_duration):
     with open(PROGRESS_FILE, "w") as f:
         f.write("COMPLETE!\n")
         f.write(f"Total reviews processed: {total_reviews}\n")
-        f.write(f"Total processing time: {total_duration:.1f} seconds\n")
-        f.write(f"Average processing speed: {total_reviews/total_duration:.1f} reviews/second\n")
+        f.write(f"Total processing time: {process_duration:.1f} seconds\n")
+        f.write(f"Average processing speed: {total_reviews/process_duration:.1f} reviews/second\n")
         f.write(f"Total time: {total_duration:.1f} seconds\n")
 
     logger.info(f"Done! Processed {total_reviews} reviews in {total_duration:.1f} seconds")
