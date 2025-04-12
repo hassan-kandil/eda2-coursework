@@ -148,10 +148,6 @@ def generate_sentiment_statistics(
     """
     logger.info("Generating sentiment analysis statistics...")
 
-    # Cache for performance if not already cached
-    if not sentiment_analysis_results_df.is_cached:
-        sentiment_analysis_results_df.cache()
-
     # Count total reviews
     total_count = sentiment_analysis_results_df.count()
     logger.info(f"Total processed reviews: {total_count:,}")

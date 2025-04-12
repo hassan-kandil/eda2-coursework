@@ -146,6 +146,9 @@ def process_reviews(
         col("result.sentiment"),
         col("result.score"),
     )
+    # Cache dataframe to prevent recomputations
+    logger.info("Caching results dataframe...")
+    sentiment_results_df = sentiment_results_df.cache()
     # Save results to output path
     sentiment_results_df.write.option("header", "true").mode("overwrite").csv(
         output_path
