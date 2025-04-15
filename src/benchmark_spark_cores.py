@@ -3,6 +3,7 @@
 PySpark core scaling benchmark for transformer models.
 Tests performance with different numbers of Spark executors/cores
 while keeping PyTorch threads fixed at 1.
+Includes token statistics for input dataset.
 """
 
 import json
@@ -20,10 +21,11 @@ from tqdm import tqdm
 
 # PySpark imports
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, pandas_udf
+from pyspark.sql.functions import col, pandas_udf, expr, min as spark_min, max as spark_max, avg as spark_avg, sum as spark_sum
 from pyspark.sql.types import (
     StringType,
     FloatType,
+    IntegerType,
     StructType,
     StructField,
 )
@@ -49,7 +51,42 @@ def measure_memory():
     return memory_mb
 
 
-def load_data(spark, file_path, limit=None):
+def compute_token_counts(df, tokenizer):
+    """
+    Compute token count statistics for the reviews dataframe
+    Returns a new dataframe with token counts added
+    """
+    # Create a UDF to count tokens
+    @pandas_udf(IntegerType())
+    def count_tokens(texts):
+        token_counts = []
+        for text in texts:
+            tokens = tokenizer.encode(text, add_special_tokens=True)
+            token_counts.append(len(tokens))
+        return pd.Series(token_counts)
+    
+    # Apply the UDF to compute token counts
+    df_with_tokens = df.withColumn("token_count", count_tokens(df["text"]))
+    
+    # Compute statistics
+    token_stats = df_with_tokens.agg(
+        spark_sum("token_count").alias("total_tokens"),
+        spark_min("token_count").alias("min_tokens"),
+        spark_max("token_count").alias("max_tokens"),
+        spark_avg("token_count").alias("avg_tokens"),
+    ).collect()[0]
+    
+    # Log token statistics
+    logger.info(f"Token statistics:")
+    logger.info(f"  Total tokens: {token_stats['total_tokens']}")
+    logger.info(f"  Min tokens per review: {token_stats['min_tokens']}")
+    logger.info(f"  Max tokens per review: {token_stats['max_tokens']}")
+    logger.info(f"  Avg tokens per review: {token_stats['avg_tokens']:.2f}")
+    
+    return df_with_tokens, token_stats
+
+
+def load_data(spark, file_path, tokenizer, limit=None):
     """Load Amazon reviews from JSONL file into a Spark DataFrame"""
     # Read the JSON Lines file
     reviews_df = spark.read.json(file_path)
@@ -66,14 +103,17 @@ def load_data(spark, file_path, limit=None):
         col("text"),
     )
 
+    # Compute token counts and get statistics
+    reviews_df_with_tokens, token_stats = compute_token_counts(reviews_df, tokenizer)
+
     # Cache the DataFrame to improve performance
-    reviews_df.cache()
+    reviews_df_with_tokens.cache()
 
     # Count and log the number of reviews
-    count = reviews_df.count()
+    count = reviews_df_with_tokens.count()
     logger.info(f"Loaded {count} reviews from {file_path}")
 
-    return reviews_df
+    return reviews_df_with_tokens, token_stats
 
 
 def run_spark_benchmark(data_file, num_cores, num_samples):
@@ -91,17 +131,19 @@ def run_spark_benchmark(data_file, num_cores, num_samples):
     actual_cores = spark_session.conf.get("spark.cores.max")
     logger.info(f"Actual spark.cores.max: {actual_cores}")
 
-    # Load data
-    data_df = load_data(spark_session, data_file, num_samples)
+    # Load model and tokenizer first (needed for token counting)
+    tokenizer, model = load_model()
+    
+    # Load data with token statistics
+    data_df, token_stats = load_data(spark_session, data_file, tokenizer, num_samples)
     logger.info(f"Loaded {data_df.count()} reviews for processing")
 
     # Repartition the DataFrame to match the number of cores
     reviews_df = data_df.repartition(num_cores)
     logger.info(f"Repartitioned DataFrame to {num_cores} partitions")
 
-    # Load model and tokenizer
-    tokenizer, model = load_model()
     # Broadcast model and tokenizer to all workers
+    logger.info("Broadcasting model and tokenizer to all workers")
     process.bc_tokenizer = spark_session.sparkContext.broadcast(tokenizer)
     process.bc_model = spark_session.sparkContext.broadcast(model)
 
@@ -109,33 +151,44 @@ def run_spark_benchmark(data_file, num_cores, num_samples):
     memory_before = measure_memory()
     logger.info(f"Memory before processing: {memory_before:.2f} MB")
 
-    # Apply sentiment analysis
-    sentiment_results_df = reviews_df.withColumn(
-        "result", process._batch_sentiment_analysis(reviews_df["text"])
-    )
-
-    # Flatten the result column and force execution
-    results_df = sentiment_results_df.select(
-        col("asin"),
-        col("user_id"),
-        col("result.review_text"),
-        col("result.sentiment"),
-        col("result.score"),
-    )
-
-    # Count to force execution of the entire pipeline
-    total_results = results_df.count()
-
-    # Start timing
+    analysis_output_path = f"/analysis_outputs/cores_{num_cores}_results.csv"
     start_time = time.time()
+    sentiment_analysis_results_df = process.process_reviews(
+        reviews_df=reviews_df,
+        output_path=analysis_output_path,
+        review_text_column="text",
+    )
+    total_time = time.time() - start_time
+    total_results = sentiment_analysis_results_df.count()
+    logger.info(
+        f"Sentiment analysis completed in {total_time:.1f} seconds with average speed of {total_results / total_time:.1f} reviews/second"
+    )
 
-    # Write results to csv
-    output_path = f"/analysis_outputs/cores_{num_cores}_results.csv"
-    logger.info(f"Writing results to {output_path}")
-    results_df.write.option("header", "true").mode("overwrite").csv(output_path)
-    # End timing
-    end_time = time.time()
-    total_time = end_time - start_time
+    #  # Apply sentiment analysis
+    # sentiment_results_df = reviews_df.withColumn(
+    #     "result", process._batch_sentiment_analysis(reviews_df["text"])
+    # )
+
+    # # Flatten the result column and force execution
+    # sentiment_results_df = sentiment_results_df.select(
+    #     col("asin"),
+    #     col("user_id"),
+    #     col("token_count"),
+    #     col("text"),
+    #     col("result.sentiment"),
+    #     col("result.score"),
+    # )
+
+    # start_time = time.time()
+
+    # # Write results to csv
+    # output_path = f"/analysis_outputs/cores_{num_cores}_results.csv"
+    # logger.info(f"Writing results to {output_path}")
+    # sentiment_results_df.write.option("header", "true").mode("overwrite").csv(output_path)
+    # end_time = time.time()
+    # total_time = end_time - start_time
+
+    # total_results = sentiment_results_df.count()
 
     # Memory after processing
     memory_after = measure_memory()
@@ -145,8 +198,13 @@ def run_spark_benchmark(data_file, num_cores, num_samples):
     metrics = {
         "cores": num_cores,
         "total_samples": total_results,
+        "total_tokens": token_stats["total_tokens"],
+        "min_tokens": token_stats["min_tokens"],
+        "max_tokens": token_stats["max_tokens"],
+        "avg_tokens": float(token_stats["avg_tokens"]),
         "total_time": total_time,
         "throughput_samples_per_second": total_results / total_time,
+        "throughput_tokens_per_second": token_stats["total_tokens"] / total_time,
         "memory_before_mb": memory_before,
         "memory_after_mb": memory_after,
         "memory_increase_mb": memory_increase,
@@ -157,6 +215,9 @@ def run_spark_benchmark(data_file, num_cores, num_samples):
     logger.info(f"  Total time: {metrics['total_time']:.2f} seconds")
     logger.info(
         f"  Throughput: {metrics['throughput_samples_per_second']:.2f} samples/second"
+    )
+    logger.info(
+        f"  Token throughput: {metrics['throughput_tokens_per_second']:.2f} tokens/second"
     )
     logger.info(
         f"  Memory: {memory_before:.1f} MB → {memory_after:.1f} MB (increase: {memory_increase:.1f} MB)"
@@ -180,6 +241,7 @@ def plot_results(all_metrics):
     cores = [m["cores"] for m in all_metrics]
     times = [m["total_time"] for m in all_metrics]
     throughputs = [m["throughput_samples_per_second"] for m in all_metrics]
+    token_throughputs = [m["throughput_tokens_per_second"] for m in all_metrics]
 
     # Find baseline (1 core)
     baseline_idx = next((i for i, m in enumerate(all_metrics) if m["cores"] == 1), 0)
@@ -188,8 +250,8 @@ def plot_results(all_metrics):
     # Calculate speedup
     speedups = [base_time / t for t in times]
 
-    # Create figure with subplots
-    fig, axs = plt.subplots(2, 2, figsize=(14, 12))
+    # Create figure with subplots - now 3x2 to include token metrics
+    fig, axs = plt.subplots(3, 2, figsize=(14, 18))
 
     # Plot 1: Processing Time
     axs[0, 0].plot(cores, times, "o-", linewidth=2, color="blue")
@@ -198,33 +260,50 @@ def plot_results(all_metrics):
     axs[0, 0].set_ylabel("Time (seconds)")
     axs[0, 0].grid(True)
 
-    # Plot 2: Throughput
+    # Plot 2: Sample Throughput
     axs[0, 1].plot(cores, throughputs, "o-", color="green", linewidth=2)
-    axs[0, 1].set_title("Throughput vs. Core Count")
+    axs[0, 1].set_title("Sample Throughput vs. Core Count")
     axs[0, 1].set_xlabel("Spark Cores")
     axs[0, 1].set_ylabel("Samples per Second")
     axs[0, 1].grid(True)
 
-    # Plot 3: Speedup vs. Perfect Scaling
-    axs[1, 0].plot(
+    # Plot 3: Token Throughput
+    axs[1, 0].plot(cores, token_throughputs, "o-", color="orange", linewidth=2)
+    axs[1, 0].set_title("Token Throughput vs. Core Count")
+    axs[1, 0].set_xlabel("Spark Cores")
+    axs[1, 0].set_ylabel("Tokens per Second")
+    axs[1, 0].grid(True)
+
+    # Plot 4: Speedup vs. Perfect Scaling
+    axs[1, 1].plot(
         cores, speedups, "o-", color="red", linewidth=2, label="Actual Speedup"
     )
-    axs[1, 0].plot(
+    axs[1, 1].plot(
         cores, cores, "--", color="gray", linewidth=1, label="Perfect Scaling"
     )
-    axs[1, 0].set_title("Speedup vs. Core Count")
-    axs[1, 0].set_xlabel("Spark Cores")
-    axs[1, 0].set_ylabel("Speedup Factor")
-    axs[1, 0].grid(True)
-    axs[1, 0].legend()
-
-    # Plot 4: Efficiency (Speedup/Cores)
-    efficiency = [s / c for s, c in zip(speedups, cores)]
-    axs[1, 1].plot(cores, efficiency, "o-", color="purple", linewidth=2)
-    axs[1, 1].set_title("Scaling Efficiency vs. Core Count")
+    axs[1, 1].set_title("Speedup vs. Core Count")
     axs[1, 1].set_xlabel("Spark Cores")
-    axs[1, 1].set_ylabel("Efficiency (Speedup/Cores)")
+    axs[1, 1].set_ylabel("Speedup Factor")
     axs[1, 1].grid(True)
+    axs[1, 1].legend()
+
+    # Plot 5: Efficiency (Speedup/Cores)
+    efficiency = [s / c for s, c in zip(speedups, cores)]
+    axs[2, 0].plot(cores, efficiency, "o-", color="purple", linewidth=2)
+    axs[2, 0].set_title("Scaling Efficiency vs. Core Count")
+    axs[2, 0].set_xlabel("Spark Cores")
+    axs[2, 0].set_ylabel("Efficiency (Speedup/Cores)")
+    axs[2, 0].grid(True)
+
+    # Plot 6: Tokens per Review Distribution (use the last metrics for this)
+    axs[2, 1].bar(["Min", "Avg", "Max"], 
+                 [all_metrics[-1]["min_tokens"], 
+                  all_metrics[-1]["avg_tokens"], 
+                  all_metrics[-1]["max_tokens"]], 
+                 color=["#1f77b4", "#ff7f0e", "#2ca02c"])
+    axs[2, 1].set_title("Token Count Distribution")
+    axs[2, 1].set_ylabel("Number of Tokens")
+    axs[2, 1].grid(axis="y")
 
     plt.tight_layout()
     plt.savefig("spark_scaling_results.png")
@@ -240,16 +319,25 @@ def plot_results(all_metrics):
     plt.grid(True)
     plt.savefig("plot1_spark_processing_time.png")
 
-    # Plot 2: Throughput
+    # Plot 2: Sample Throughput
     plt.figure(figsize=(8, 6))
     plt.plot(cores, throughputs, "o-", color="green", linewidth=2)
-    plt.title("Throughput vs. Core Count")
+    plt.title("Sample Throughput vs. Core Count")
     plt.xlabel("Spark Cores")
     plt.ylabel("Samples per Second")
     plt.grid(True)
     plt.savefig("plot2_spark_throughput.png")
 
-    # Plot 3: Speedup
+    # Plot 3: Token Throughput
+    plt.figure(figsize=(8, 6))
+    plt.plot(cores, token_throughputs, "o-", color="orange", linewidth=2)
+    plt.title("Token Throughput vs. Core Count")
+    plt.xlabel("Spark Cores")
+    plt.ylabel("Tokens per Second")
+    plt.grid(True)
+    plt.savefig("plot3_spark_token_throughput.png")
+
+    # Plot 4: Speedup
     plt.figure(figsize=(8, 6))
     plt.plot(cores, speedups, "o-", color="red", linewidth=2, label="Actual Speedup")
     plt.plot(cores, cores, "--", color="gray", linewidth=1, label="Perfect Scaling")
@@ -258,24 +346,36 @@ def plot_results(all_metrics):
     plt.ylabel("Speedup Factor")
     plt.grid(True)
     plt.legend()
-    plt.savefig("plot3_spark_speedup.png")
+    plt.savefig("plot4_spark_speedup.png")
 
-    # Plot 4: Efficiency
+    # Plot 5: Efficiency
     plt.figure(figsize=(8, 6))
     plt.plot(cores, efficiency, "o-", color="purple", linewidth=2)
     plt.title("Scaling Efficiency vs. Core Count")
     plt.xlabel("Spark Cores")
     plt.ylabel("Efficiency (Speedup/Cores)")
     plt.grid(True)
-    plt.savefig("plot4_spark_efficiency.png")
+    plt.savefig("plot5_spark_efficiency.png")
+
+    # Plot 6: Token Distribution
+    plt.figure(figsize=(8, 6))
+    plt.bar(["Min", "Avg", "Max"], 
+            [all_metrics[-1]["min_tokens"], 
+             all_metrics[-1]["avg_tokens"], 
+             all_metrics[-1]["max_tokens"]], 
+            color=["#1f77b4", "#ff7f0e", "#2ca02c"])
+    plt.title("Token Count Distribution")
+    plt.ylabel("Number of Tokens")
+    plt.grid(axis="y")
+    plt.savefig("plot6_token_distribution.png")
 
     # Create summary table
     print("\nSpark Core Scaling Performance Summary:")
-    print("=" * 100)
+    print("=" * 140)
     print(
-        f"{'Cores':<8} {'Time(s)':<10} {'Throughput':<15} {'Speedup':<10} {'Efficiency':<10}"
+        f"{'Cores':<8} {'Time(s)':<10} {'Samples/s':<12} {'Tokens/s':<12} {'Speedup':<10} {'Efficiency':<10} {'Avg Tokens':<12} {'Min Tokens':<12} {'Max Tokens':<12}"
     )
-    print("-" * 100)
+    print("-" * 140)
 
     sorted_metrics = sorted(all_metrics, key=lambda m: m["cores"])
 
@@ -285,10 +385,12 @@ def plot_results(all_metrics):
 
         print(
             f"{m['cores']:<8} {m['total_time']:<10.2f} "
-            f"{m['throughput_samples_per_second']:<15.2f} {speedup:<10.2f}x {efficiency:<10.2f}"
+            f"{m['throughput_samples_per_second']:<12.2f} {m['throughput_tokens_per_second']:<12.2f} "
+            f"{speedup:<10.2f}x {efficiency:<10.2f} {m['avg_tokens']:<12.2f} "
+            f"{m['min_tokens']:<12d} {m['max_tokens']:<12d}"
         )
 
-    print("=" * 100)
+    print("=" * 140)
 
     # Save all metrics to CSV
     pd.DataFrame(all_metrics).to_csv("spark_benchmark_results.csv", index=False)
@@ -299,7 +401,7 @@ def main():
     parser = argparse.ArgumentParser(description="PySpark Core Scaling Benchmark")
     parser.add_argument(
         "--data",
-        default="Subscription_Boxes.jsonl",
+        default="/Subscription_Boxes.jsonl",
         help="Path to JSONL file with reviews",
     )
     parser.add_argument(
