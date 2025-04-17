@@ -11,9 +11,7 @@ from .utils import (
 from pyspark.sql.functions import col, round as spark_round, mean, stddev, min, max, lit
 
 
-def merge_results_csv_in_hdfs(
-    read_hdfs_path: str, write_hdfs_path: str, csv_file_name: str
-) -> None:
+def merge_results_csv_in_hdfs(read_hdfs_path: str, write_hdfs_path: str, csv_file_name: str) -> None:
     logger.info(f"WRITING ANALYSIS SUMMARY OUTPUT {csv_file_name} TO HDFS...")
     final_path = f"{write_hdfs_path}/{csv_file_name}.csv"
     temp_csv_path = "/tmp/merged_results.csv"
@@ -73,9 +71,7 @@ def _plot_sentiment_distribution_pie(
     """
     plt.figure(figsize=(8, 8))
     # Create cleaner labels with percentages
-    pie_labels = [
-        f"{sentiment} ({pct:.1f}%)" for sentiment, pct in zip(sentiments, percentages)
-    ]
+    pie_labels = [f"{sentiment} ({pct:.1f}%)" for sentiment, pct in zip(sentiments, percentages)]
 
     # Draw the pie chart
     plt.pie(
@@ -114,31 +110,23 @@ def plot_sentiment_results(sentiment_results: list[dict], output_path: str) -> N
     # Plot sentiment distribution bar chart
     local_sentiment_distr_chart_path = "/tmp/sentiment_distribution.png"
     hdfs_sentiment_distr_chart_path = f"{output_path}/sentiment_distribution.png"
-    _plot_sentiment_distribution_bar(
-        sentiments, counts, colors, local_sentiment_distr_chart_path
-    )
+    _plot_sentiment_distribution_bar(sentiments, counts, colors, local_sentiment_distr_chart_path)
 
     # Upload the sentiment distribution plot to HDFS
-    upload_file_to_hdfs(
-        local_sentiment_distr_chart_path, hdfs_sentiment_distr_chart_path
-    )
+    upload_file_to_hdfs(local_sentiment_distr_chart_path, hdfs_sentiment_distr_chart_path)
     logger.info("Uploaded sentiment distribution bar char to HDFS")
 
     # Plot sentiment distribution pie chart
     local_sentiment_pie_chart_path = "/tmp/sentiment_pie_chart.png"
     hdfs_sentiment_pie_chart_path = f"{output_path}/sentiment_pie_chart.png"
-    _plot_sentiment_distribution_pie(
-        sentiments, counts, percentages, colors, local_sentiment_pie_chart_path
-    )
+    _plot_sentiment_distribution_pie(sentiments, counts, percentages, colors, local_sentiment_pie_chart_path)
 
     # Upload the sentiment pie chart to HDFS
     upload_file_to_hdfs(local_sentiment_pie_chart_path, hdfs_sentiment_pie_chart_path)
     logger.info("Uploaded sentiment distribution pie chart to HDFS")
 
 
-def generate_sentiment_statistics(
-    sentiment_analysis_results_df: pd.DataFrame, summary_output_path: str
-) -> None:
+def generate_sentiment_statistics(sentiment_analysis_results_df: pd.DataFrame, summary_output_path: str) -> None:
     """
     Generate statistics on sentiment analysis results and plot visualizations.
 
@@ -174,9 +162,7 @@ def generate_sentiment_statistics(
     write_df_to_hdfs_csv(score_stats_df, summary_output_path, "sentiment_overall_stats")
 
     # Get sentiment distribution using Spark
-    sentiment_counts_df = (
-        sentiment_analysis_results_df.groupBy("sentiment").count().orderBy("sentiment")
-    )
+    sentiment_counts_df = sentiment_analysis_results_df.groupBy("sentiment").count().orderBy("sentiment")
 
     # Calculate percentages using Spark
     sentiment_with_pct_df = sentiment_counts_df.withColumn(
@@ -189,16 +175,46 @@ def generate_sentiment_statistics(
     # Log the distribution
     logger.info("Sentiment Distribution:")
     for row in sentiment_results:
-        logger.info(
-            f"  {row['sentiment']}: {row['count']} reviews ({row['percentage']}%)"
-        )
+        logger.info(f"  {row['sentiment']}: {row['count']} reviews ({row['percentage']}%)")
 
     # Write the summary DataFrames to HDFS in CSV format
-    write_df_to_hdfs_csv(
-        sentiment_with_pct_df, summary_output_path, "sentiment_distribution"
-    )
+    write_df_to_hdfs_csv(sentiment_with_pct_df, summary_output_path, "sentiment_distribution")
 
     # Plot sentiment distribution
     logger.info("Generating sentiment distribution visualizations...")
     plot_sentiment_results(sentiment_results, summary_output_path)
     logger.info("Sentiment analysis statistics generation complete.")
+
+
+def generate_token_statistics(sentiment_analysis_results_df: pd.DataFrame, summary_output_path: str) -> pd.DataFrame:
+    """
+    Generate token statistics from sentiment analysis results.
+
+    Args:
+        sentiment_analysis_results_df: DataFrame containing sentiment analysis results
+        summary_output_path: HDFS path to save the summary output
+    """
+    logger.info("Generating token statistics...")
+
+    # Token statistics dataframe
+    # Calculate mean, stddev, min, and max token counts
+    token_stats_df = sentiment_analysis_results_df.agg(
+        sum("token_count").alias("total_tokens"),
+        mean("token_count").alias("mean_token_count"),
+        stddev("token_count").alias("stddev_token_count"),
+        max("token_count").alias("min_token_count"),
+        min("token_count").alias("max_token_count"),
+    ).collect()[0]
+
+    # Log the statistics
+    logger.info("Token Count Statistics:")
+    logger.info(f"  Total Tokens: {token_stats_df['total_tokens']}")
+    logger.info(f"  Mean: {token_stats_df['mean_token_count']:.4f}")
+    logger.info(f"  StdDev: {token_stats_df['stddev_token_count']:.4f}")
+    logger.info(f"  Min: {token_stats_df['min_token_count']:.4f}")
+    logger.info(f"  Max: {token_stats_df['max_token_count']:.4f}")
+
+    # Write the token statistics DataFrame to HDFS in CSV format
+    write_df_to_hdfs_csv(token_stats_df, summary_output_path, "sentiment_token_stats")
+
+    return token_stats_df

@@ -5,6 +5,7 @@ from pyspark.sql.functions import pandas_udf
 from pyspark.sql.types import (
     StringType,
     FloatType,
+    IntegerType,
     StructType,
     StructField,
 )
@@ -16,6 +17,7 @@ from .config import logger
 # Define schema for sentiment analysis results
 sentiment_schema = StructType(
     [
+        StructField("token_count", IntegerType(), True),
         StructField("sentiment", StringType(), True),
         StructField("score", FloatType(), True),
     ]
@@ -75,6 +77,7 @@ def _batch_sentiment_analysis(review_texts: pd.Series) -> pd.DataFrame:
     _set_torch_threading(num_threads=1)
 
     results = []
+    total_tokens = 0
     # Process each review
     for review_text in review_texts:
 
@@ -87,6 +90,10 @@ def _batch_sentiment_analysis(review_texts: pd.Series) -> pd.DataFrame:
                 truncation=True,
                 max_length=128,  # Adjust based on average review length
             )
+
+            # Count tokens excluding padding using attention mask
+            token_count = inputs["attention_mask"].sum().item()
+            total_tokens += token_count
 
             # Run model inference
             with torch.no_grad():
@@ -103,6 +110,7 @@ def _batch_sentiment_analysis(review_texts: pd.Series) -> pd.DataFrame:
 
             results.append(
                 {
+                    "token_count": token_count,
                     "sentiment": sentiment_label,
                     "score": float(confidence),
                 }
@@ -110,11 +118,14 @@ def _batch_sentiment_analysis(review_texts: pd.Series) -> pd.DataFrame:
 
         except Exception as e:
             # Log error and continue with neutral sentiment
-            logger.error(f"Error processing review: {e}")
-            results.append({"sentiment": "ERROR", "score": 0.0})
+            logger.exception(f"Error processing review: {e}")
+            results.append({"token_count": 0, "sentiment": "ERROR", "score": 0.0})
             pass
 
-    logger.info(f"Done processing {len(results)} reviews..")
+    # Log token statistics
+    avg_tokens = total_tokens / len(review_texts) if review_texts.size > 0 else 0
+    logger.info(f"Processed batch: {len(review_texts)} reviews with {total_tokens} tokens (avg: {avg_tokens:.1f})")
+
     # Create and return DataFrame with results
     return pd.DataFrame(results)
 
@@ -143,6 +154,7 @@ def process_reviews(
         col("asin"),
         col("user_id"),
         col("text"),
+        col("result.token_count"),
         col("result.sentiment"),
         col("result.score"),
     )
@@ -150,8 +162,6 @@ def process_reviews(
     logger.info("Caching results dataframe...")
     sentiment_results_df = sentiment_results_df.cache()
     # Save results to output path
-    sentiment_results_df.write.option("header", "true").mode("overwrite").csv(
-        output_path
-    )
+    sentiment_results_df.write.option("header", "true").mode("overwrite").csv(output_path)
     logger.info(f"Sentiment analysis results saved to {output_path}")
     return sentiment_results_df

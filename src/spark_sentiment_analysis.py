@@ -2,7 +2,6 @@ import argparse
 import sys
 import time
 import json
-import os
 import threading
 
 import sentiment_analysis.process as process
@@ -42,7 +41,7 @@ def update_progress(stage, current=0, total=0, start_time=None):
         logger.info(f"Progress: {stage}")
 
 
-def track_batch(processed_count, batch_size=1000):
+def track_batch(processed_count, batch_size=100):
     """Returns a function to track progress in Spark partitions"""
 
     def _track_batch_fn(partition_index, iterator):
@@ -50,6 +49,7 @@ def track_batch(processed_count, batch_size=1000):
         for row in iterator:
             counter += 1
             if counter % batch_size == 0:
+                # Update the accumulator with the batch size
                 processed_count.add(batch_size)
             yield row
 
@@ -61,36 +61,64 @@ def monitor_progress_thread(processed_count, total_count, start_time, stop_event
     last_count = 0
     while not stop_event.is_set():
         current = processed_count.value
+        logger.info("Monitoring progress thread...")
         if current > last_count:
             # Only update if there's been progress
             update_progress("Processing sentiment", current, total_count, start_time)
             last_count = current
-        time.sleep(2)  # Check every 2 seconds
+        time.sleep(5)  # Check every 5 seconds
 
 
-def save_final_summary(total_reviews, total_duration, process_duration, partitions_count):
+def save_final_summary(
+    total_reviews_processed,
+    total_reviews_before_preprocessing,
+    total_duration,
+    process_duration,
+    partitions_count,
+    token_stats_df,
+):
     """Save the final summary and metrics to files."""
     # Save final summary to progress file
+    total_tokens, avg_tokens = token_stats_df["total_tokens"], token_stats_df["mean_token_count"]
+    min_tokens, max_tokens = token_stats_df["min_token_count"], token_stats_df["max_token_count"]
+
     with open(PROGRESS_FILE, "w") as f:
         f.write("COMPLETE!\n")
-        f.write(f"Total reviews processed: {total_reviews}\n")
+        f.write(f"Processing time: {process_duration:.1f} seconds\n")
+        f.write(f"Total reviews before preprocessing: {total_reviews_before_preprocessing}\n")
+        f.write(f"Total reviews processed: {total_reviews_processed}\n")
+        f.write(f"Processing speed: {total_reviews_processed/process_duration:.1f} reviews/second\n")
+
+        f.write("-" * 20 + "\n")
+        f.write(f"Total tokens processed: {total_tokens}\n")
+        f.write(f"Processing speed: {total_tokens/process_duration:.1f} tokens/second\n")
+        f.write(f"Average tokens per review: {avg_tokens:.1f}\n")
+        f.write(f"Min tokens per review: {min_tokens:.1f}\n")
+        f.write(f"Max tokens per review: {max_tokens:.1f}\n")
+
+        f.write("-" * 20 + "\n")
         f.write(f"Number of partitions: {partitions_count}\n")
-        f.write(f"Reviews per partition: {total_reviews // partitions_count}\n")
-        f.write(f"Total processing time: {process_duration:.1f} seconds\n")
-        f.write(f"Average processing speed: {total_reviews/process_duration:.1f} reviews/second\n")
+        f.write(f"Avg Reviews per partition: {total_reviews_processed / partitions_count}\n")
+
+        f.write("-" * 20 + "\n")
         f.write(f"Total time: {total_duration:.1f} seconds\n")
 
-    logger.info(f"Done! Processed {total_reviews} reviews in {total_duration:.1f} seconds")
+    logger.info(f"Done! Processed {total_reviews_processed} reviews in {total_duration:.1f} seconds")
 
     # Save basic metrics to a simple JSON file
     metrics = {
-        "total_reviews": total_reviews,
+        "total_reviews": total_reviews_processed,
         "partitions_count": partitions_count,
-        "reviews_per_partition": total_reviews // partitions_count,
+        "reviews_per_partition": total_reviews_processed // partitions_count,
         "processing_time_seconds": process_duration,
-        "reviews_per_second": (total_reviews / process_duration if process_duration > 0 else 0),
+        "reviews_per_second": (total_reviews_processed / process_duration if process_duration > 0 else 0),
         "total_time_seconds": total_duration,
         "completed_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "total_tokens": total_tokens,
+        "avg_tokens_per_review": avg_tokens,
+        "min_tokens_per_review": min_tokens,
+        "max_tokens_per_review": max_tokens,
+        "tokens_per_second": (total_tokens / process_duration if process_duration > 0 else 0),
     }
 
     with open("/tmp/sentiment_analysis_metrics.json", "w") as f:
@@ -148,12 +176,12 @@ def main():
     reviews_df = load_amazon_reviews(spark, input_path, args.sample_ratio)
 
     # Count total reviews
-    total_reviews = reviews_df.count()
-    logger.info(f"Starting to handle all {total_reviews:,} reviews")
-    update_progress("Data loaded", 0, total_reviews, overall_start_time)
+    total_reviews_processed = reviews_df.count()
+    logger.info(f"Starting to handle all {total_reviews_processed:,} reviews")
+    update_progress("Data loaded", 0, total_reviews_processed, overall_start_time)
 
     # Load model and tokenizer
-    update_progress("Loading model", 0, total_reviews, overall_start_time)
+    update_progress("Loading model", 0, total_reviews_processed, overall_start_time)
     tokenizer, model = load_model()
 
     # Broadcast model and tokenizer to all workers
@@ -163,12 +191,15 @@ def main():
         process.bc_model = spark.sparkContext.broadcast(model)
 
     # Repartition the DataFrame for optimal processing
-    update_progress("Repartitioning data", 0, total_reviews, overall_start_time)
+    update_progress("Repartitioning data", 0, total_reviews_processed, overall_start_time)
     target_partition_size_mb = 128
     reviews_df = preprocess.repartition_dataset(spark, input_path, reviews_df, target_partition_size_mb)
 
+    # Get count before preprocessing
+    total_reviews_before_preprocessing = reviews_df.count()
+
     # Preprocess the reviews
-    update_progress("Preprocessing reviews", 0, total_reviews, overall_start_time)
+    update_progress("Preprocessing reviews", 0, total_reviews_processed, overall_start_time)
     reviews_df = preprocess.preprocess_reviews(reviews_df, text_column="text", output_column="preprocessed_text")
 
     # Get current count after preprocessing
@@ -202,8 +233,10 @@ def main():
         review_text_column="preprocessed_text",
     )
     process_duration = time.time() - process_start_time
+    # Count total reviews processed
+    total_reviews_processed = sentiment_analysis_results_df.count()
     logger.info(
-        f"Sentiment analysis completed in {process_duration:.1f} seconds with average speed of {total_reviews / process_duration:.1f} reviews/second"
+        f"Sentiment analysis completed in {process_duration:.1f} seconds with average speed of {total_reviews_processed / process_duration:.1f} reviews/second"
     )
     partitions_count = sentiment_analysis_results_df.rdd.getNumPartitions()
     # Stop the monitoring thread
@@ -211,18 +244,31 @@ def main():
     monitor_thread.join(timeout=1.0)
 
     # Update final progress for sentiment analysis
-    update_progress("Sentiment analysis complete", total_reviews, total_reviews, overall_start_time)
+    update_progress("Sentiment analysis complete", total_reviews_processed, total_reviews_processed, overall_start_time)
 
     # Combine results into a single csv file
-    update_progress("Merging results", total_reviews, total_reviews, overall_start_time)
+    update_progress("Merging results", total_reviews_processed, total_reviews_processed, overall_start_time)
     postprocess.merge_results_csv_in_hdfs(analysis_output_path, summary_output_path, "sentiment_analysis_full_results")
 
     # Generate sentiment statistics
-    update_progress("Generating statistics", total_reviews, total_reviews, overall_start_time)
+    update_progress("Generating statistics", total_reviews_processed, total_reviews_processed, overall_start_time)
     postprocess.generate_sentiment_statistics(sentiment_analysis_results_df, summary_output_path)
 
+    # Generate token statistics
+    token_stats_df = postprocess.generate_token_statistics(sentiment_analysis_results_df, summary_output_path)
+
+    # Save final summary and metrics
+    save_final_summary(
+        total_reviews_processed,
+        total_reviews_before_preprocessing,
+        total_duration,
+        process_duration,
+        partitions_count,
+        token_stats_df,
+    )
+
     # Clean up temporary files
-    update_progress("Cleaning up", total_reviews, total_reviews, overall_start_time)
+    update_progress("Cleaning up", total_reviews_processed, total_reviews_processed, overall_start_time)
 
     # Add explicit unpersist for cached DataFrames
     reviews_df.unpersist()
@@ -234,9 +280,6 @@ def main():
     # Calculate overall metrics
     overall_end_time = time.time()
     total_duration = overall_end_time - overall_start_time
-
-    # Save final summary and metrics
-    save_final_summary(total_reviews, total_duration, process_duration, partitions_count)
 
     # Stop Spark session
     spark.stop()
