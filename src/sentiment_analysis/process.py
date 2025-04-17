@@ -110,7 +110,7 @@ def _batch_sentiment_analysis(review_texts: pd.Series) -> pd.DataFrame:
 
             results.append(
                 {
-                    "token_count": token_count,
+                    "token_count": int(token_count),
                     "sentiment": sentiment_label,
                     "score": float(confidence),
                 }
