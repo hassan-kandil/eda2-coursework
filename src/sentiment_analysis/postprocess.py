@@ -8,7 +8,7 @@ from .utils import (
     upload_file_to_hdfs,
     write_df_to_hdfs_csv,
 )
-from pyspark.sql.functions import col, round as spark_round, mean, stddev, min, max, lit
+from pyspark.sql.functions import col, round as spark_round, mean, stddev, min, max, lit, sum
 
 
 def merge_results_csv_in_hdfs(read_hdfs_path: str, write_hdfs_path: str, csv_file_name: str) -> None:
@@ -202,8 +202,8 @@ def generate_token_statistics(sentiment_analysis_results_df: pd.DataFrame, summa
         sum("token_count").alias("total_tokens"),
         mean("token_count").alias("mean_token_count"),
         stddev("token_count").alias("stddev_token_count"),
-        max("token_count").alias("min_token_count"),
-        min("token_count").alias("max_token_count"),
+        max("token_count").alias("max_token_count"),
+        min("token_count").alias("min_token_count"),
     ).collect()[0]
 
     # Log the statistics
