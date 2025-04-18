@@ -186,7 +186,7 @@ def generate_sentiment_statistics(sentiment_analysis_results_df: pd.DataFrame, s
     logger.info("Sentiment analysis statistics generation complete.")
 
 
-def generate_token_statistics(sentiment_analysis_results_df: pd.DataFrame, summary_output_path: str) -> pd.DataFrame:
+def generate_token_statistics(sentiment_analysis_results_df: pd.DataFrame, summary_output_path: str) -> dict:
     """
     Generate token statistics from sentiment analysis results.
 
@@ -204,17 +204,18 @@ def generate_token_statistics(sentiment_analysis_results_df: pd.DataFrame, summa
         stddev("token_count").alias("stddev_token_count"),
         max("token_count").alias("max_token_count"),
         min("token_count").alias("min_token_count"),
-    ).collect()[0]
+    )
+    token_stats = token_stats_df.collect()[0]
 
     # Log the statistics
     logger.info("Token Count Statistics:")
-    logger.info(f"  Total Tokens: {token_stats_df['total_tokens']}")
-    logger.info(f"  Mean: {token_stats_df['mean_token_count']:.4f}")
-    logger.info(f"  StdDev: {token_stats_df['stddev_token_count']:.4f}")
-    logger.info(f"  Min: {token_stats_df['min_token_count']:.4f}")
-    logger.info(f"  Max: {token_stats_df['max_token_count']:.4f}")
+    logger.info(f"  Total Tokens: {token_stats['total_tokens']}")
+    logger.info(f"  Mean: {token_stats['mean_token_count']:.4f}")
+    logger.info(f"  StdDev: {token_stats['stddev_token_count']:.4f}")
+    logger.info(f"  Min: {token_stats['min_token_count']:.4f}")
+    logger.info(f"  Max: {token_stats['max_token_count']:.4f}")
 
     # Write the token statistics DataFrame to HDFS in CSV format
     write_df_to_hdfs_csv(token_stats_df, summary_output_path, "sentiment_token_stats")
 
-    return token_stats_df
+    return token_stats

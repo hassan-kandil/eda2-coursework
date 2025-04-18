@@ -75,12 +75,12 @@ def save_final_summary(
     total_duration,
     process_duration,
     partitions_count,
-    token_stats_df,
+    token_stats,
 ):
     """Save the final summary and metrics to files."""
     # Save final summary to progress file
-    total_tokens, avg_tokens = token_stats_df["total_tokens"], token_stats_df["mean_token_count"]
-    min_tokens, max_tokens = token_stats_df["min_token_count"], token_stats_df["max_token_count"]
+    total_tokens, avg_tokens = token_stats["total_tokens"], token_stats["mean_token_count"]
+    min_tokens, max_tokens = token_stats["min_token_count"], token_stats["max_token_count"]
 
     with open(PROGRESS_FILE, "w") as f:
         f.write("COMPLETE!\n")
@@ -255,7 +255,7 @@ def main():
     postprocess.generate_sentiment_statistics(sentiment_analysis_results_df, summary_output_path)
 
     # Generate token statistics
-    token_stats_df = postprocess.generate_token_statistics(sentiment_analysis_results_df, summary_output_path)
+    token_stats = postprocess.generate_token_statistics(sentiment_analysis_results_df, summary_output_path)
 
     # Save final summary and metrics
     save_final_summary(
@@ -264,7 +264,7 @@ def main():
         total_duration,
         process_duration,
         partitions_count,
-        token_stats_df,
+        token_stats,
     )
 
     # Clean up temporary files
