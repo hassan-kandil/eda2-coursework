@@ -1,7 +1,10 @@
+import os
 import matplotlib.pyplot as plt
 import pandas as pd
 
 from .utils import (
+    compress_directory,
+    delete_local_directory,
     delete_local_file,
     logger,
     run_command,
@@ -219,3 +222,15 @@ def generate_token_statistics(sentiment_analysis_results_df: pd.DataFrame, summa
     write_df_to_hdfs_csv(token_stats_df, summary_output_path, "sentiment_token_stats")
 
     return token_stats
+
+
+def compress_hdfs_output_dir(hdfs_path):
+    logger.info(f"Compressing HDFS output directory: {hdfs_path}")
+    dir_name = os.path.basename(os.path.normpath(hdfs_path))
+    tar_file_name = "_".join(hdfs_path.strip("/").split("/")) + ".tar.gz"
+    hdfs_get_cmd = ["/home/almalinux/hadoop-3.4.0/bin/hdfs", "dfs", "-get", hdfs_path]
+    run_command(hdfs_get_cmd)
+    compress_directory(dir_name, tar_file_name)
+    upload_file_to_hdfs(tar_file_name, "/")
+    delete_local_directory(dir_name)
+    delete_local_file(tar_file_name)

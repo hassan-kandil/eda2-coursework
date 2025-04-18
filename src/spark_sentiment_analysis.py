@@ -162,7 +162,10 @@ def main():
     path_name = "_".join(word.capitalize() for word in dataset_name.split("_"))
     input_path = f"/{path_name}.jsonl"
     # Set output paths
-    analysis_output_path, summary_output_path = args.output_dir, args.summary_dir
+    analysis_output_path, summary_output_path = (
+        f"{args.output_dir}/{dataset_name}",
+        f"{args.summary_dir}/{dataset_name}",
+    )
 
     # Create initial progress file
     update_progress("Starting up")
@@ -257,15 +260,10 @@ def main():
     # Generate token statistics
     token_stats = postprocess.generate_token_statistics(sentiment_analysis_results_df, summary_output_path)
 
-    # Save final summary and metrics
-    save_final_summary(
-        total_reviews_processed,
-        total_reviews_before_preprocessing,
-        total_duration,
-        process_duration,
-        partitions_count,
-        token_stats,
-    )
+    # Prepare output files
+    update_progress("Preparing output files", total_reviews_processed, total_reviews_processed, overall_start_time)
+    postprocess.compress_hdfs_output_dir(analysis_output_path)
+    postprocess.compress_hdfs_output_dir(summary_output_path)
 
     # Clean up temporary files
     update_progress("Cleaning up", total_reviews_processed, total_reviews_processed, overall_start_time)
@@ -280,6 +278,16 @@ def main():
     # Calculate overall metrics
     overall_end_time = time.time()
     total_duration = overall_end_time - overall_start_time
+
+    # Save final summary and metrics
+    save_final_summary(
+        total_reviews_processed,
+        total_reviews_before_preprocessing,
+        total_duration,
+        process_duration,
+        partitions_count,
+        token_stats,
+    )
 
     # Stop Spark session
     spark.stop()

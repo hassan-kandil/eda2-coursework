@@ -2,7 +2,9 @@
 import os
 import math
 
+import shutil
 from subprocess import PIPE, Popen
+import tarfile
 import uuid
 
 from .config import logger
@@ -77,3 +79,26 @@ def upload_file_to_hdfs(local_file_path, hdfs_path):
     ]
     run_command(upload_command)
     logger.info(f"Successfully uploaded {local_file_path} to HDFS at {hdfs_path}")
+
+
+def compress_directory(directory_path, tar_gz_path):
+    # Compress the directory into a tar.gz file
+    logger.info(f"Compressing directory {directory_path} into {tar_gz_path}")
+    with tarfile.open(tar_gz_path, "w:gz") as tar:
+        tar.add(directory_path, arcname=".")
+    logger.info(f"Directory {directory_path} compressed into {tar_gz_path}")
+
+
+def delete_local_directory(directory_path):
+    try:
+        shutil.rmtree(directory_path)
+        logger.info(f"{directory_path} local directory has been deleted.")
+    except FileNotFoundError:
+        logger.error(f"{directory_path} does not exist.")
+        raise
+    except PermissionError:
+        logger.error(f"Permission denied to delete {directory_path}.")
+        raise
+    except Exception as e:
+        logger.error(f"An error occurred: {e}")
+        raise
