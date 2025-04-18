@@ -161,7 +161,16 @@ def process_reviews(
     # Cache dataframe to prevent recomputations
     logger.info("Caching results dataframe...")
     sentiment_results_df = sentiment_results_df.cache()
-    # Save results to output path
-    sentiment_results_df.write.option("header", "true").mode("overwrite").csv(output_path)
+    # Save results to output path in CSV format (quote and escape options)
+    # fmt: off
+    sentiment_results_df.write.format("csv")\
+        .option("header", "true")\
+        .option("quote", '"')\
+        .option("escape", '"')\
+        .option("quoteMode", "MINIMAL")\
+        .option("emptyValue", "")\
+        .mode("overwrite")\
+        .save(output_path)
+    # fmt: on
     logger.info(f"Sentiment analysis results saved to {output_path}")
     return sentiment_results_df
