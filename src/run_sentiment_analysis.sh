@@ -67,7 +67,7 @@ if [[ -z "$DATASET" ]]; then
 fi
 
 # Check if the dataset already exists on HDFS
-echo "Checking if dataset exists on HDFS..."
+echo "Checking if dataset file is available..."
 hdfs dfs -test -e "/$DATASET.jsonl"
 HDFS_EXISTS=$?
 
@@ -115,4 +115,4 @@ echo "Analysis job submitted successfully!"
 echo "You can monitor the job status using YARN dashboard."
 echo "Job output will be saved in HDFS under /summary_outputs/$DATASET"
 echo "You can download the output files using:"
-echo "hdfs dfs -get /summary_outputs/$DATASET ./local_output"
+echo "hdfs dfs -get /summary_outputs/$DATASET ."
