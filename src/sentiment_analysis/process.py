@@ -88,7 +88,7 @@ def _batch_sentiment_analysis(review_texts: pd.Series) -> pd.DataFrame:
                 return_tensors="pt",
                 padding="max_length",
                 truncation=True,
-                max_length=128,  # Adjust based on average review length
+                max_length=128,  # Bertweet max token length is 128
             )
 
             # Count tokens excluding padding using attention mask
