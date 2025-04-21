@@ -15,15 +15,6 @@ from sentiment_analysis.load import load_amazon_reviews, load_model
 # Define progress file path as a constant
 PROGRESS_FILE = "/tmp/sentiment_analysis_progress.txt"
 
-# Define available datasets
-PREDEFINED_DATASETS = [
-    "Subscription_Boxes",
-    "Magazine_Subscriptions",
-    "All_Beauty",
-    "Appliances",
-    "Arts_Crafts_and_Sewing",
-]
-
 
 def update_progress(stage, current=0, total=0, start_time=None):
     """Update the progress file with current status"""
@@ -133,14 +124,14 @@ def save_final_summary(
 
 def parse_arguments():
     """Parse command line arguments"""
-    parser = argparse.ArgumentParser(description="Run sentiment analysis on Amazon reviews")
+    parser = argparse.ArgumentParser(description="Run sentiment analysis on Amazon reviews or similar datasets.")
 
     # Dataset selection
     parser.add_argument(
         "--dataset",
-        choices=[dataset for dataset in PREDEFINED_DATASETS],
+        type=str,
         required=True,
-        help="Predefined dataset to analyze",
+        help="Dataset name to analyse",
     )
 
     # Additional options
