@@ -16,7 +16,13 @@ from sentiment_analysis.load import load_amazon_reviews, load_model
 PROGRESS_FILE = "/tmp/sentiment_analysis_progress.txt"
 
 # Define available datasets
-PREDEFINED_DATASETS = ["subscription_boxes", "magazine_subscriptions", "all_beauty", "appliances", "baby_products"]
+PREDEFINED_DATASETS = [
+    "Subscription_Boxes",
+    "Magazine_Subscriptions",
+    "All_Beauty",
+    "Appliances",
+    "Arts_Crafts_and_Sewing",
+]
 
 
 def update_progress(stage, current=0, total=0, start_time=None):
@@ -132,7 +138,7 @@ def parse_arguments():
     # Dataset selection
     parser.add_argument(
         "--dataset",
-        choices=[dataset.lower() for dataset in PREDEFINED_DATASETS],
+        choices=[dataset for dataset in PREDEFINED_DATASETS],
         required=True,
         help="Predefined dataset to analyze",
     )
@@ -157,10 +163,8 @@ def main():
     args = parse_arguments()
     overall_start_time = time.time()
 
-    dataset_name = args.dataset.lower()
-    # Transform dataset name to path format
-    path_name = "_".join(word.capitalize() for word in dataset_name.split("_"))
-    input_path = f"/{path_name}.jsonl"
+    dataset_name = args.dataset
+    input_path = f"/{dataset_name}.jsonl"
     # Set output paths
     analysis_output_path, summary_output_path = (
         f"{args.output_dir}/{dataset_name}",
