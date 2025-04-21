@@ -61,7 +61,7 @@ def compute_token_counts(df, tokenizer):
     def count_tokens(texts):
         token_counts = []
         for text in texts:
-            tokens = tokenizer.encode(text, add_special_tokens=True)
+            tokens = tokenizer.encode(text, add_special_tokens=True, truncation=True, max_length=128)
             token_counts.append(len(tokens))
         return pd.Series(token_counts)
     
@@ -151,6 +151,7 @@ def run_spark_benchmark(data_file, num_cores, num_samples):
     memory_before = measure_memory()
     logger.info(f"Memory before processing: {memory_before:.2f} MB")
 
+    # Apply sentiment analysis
     analysis_output_path = f"/analysis_outputs/cores_{num_cores}_results.csv"
     start_time = time.time()
     sentiment_analysis_results_df = process.process_reviews(
@@ -163,32 +164,6 @@ def run_spark_benchmark(data_file, num_cores, num_samples):
     logger.info(
         f"Sentiment analysis completed in {total_time:.1f} seconds with average speed of {total_results / total_time:.1f} reviews/second"
     )
-
-    #  # Apply sentiment analysis
-    # sentiment_results_df = reviews_df.withColumn(
-    #     "result", process._batch_sentiment_analysis(reviews_df["text"])
-    # )
-
-    # # Flatten the result column and force execution
-    # sentiment_results_df = sentiment_results_df.select(
-    #     col("asin"),
-    #     col("user_id"),
-    #     col("token_count"),
-    #     col("text"),
-    #     col("result.sentiment"),
-    #     col("result.score"),
-    # )
-
-    # start_time = time.time()
-
-    # # Write results to csv
-    # output_path = f"/analysis_outputs/cores_{num_cores}_results.csv"
-    # logger.info(f"Writing results to {output_path}")
-    # sentiment_results_df.write.option("header", "true").mode("overwrite").csv(output_path)
-    # end_time = time.time()
-    # total_time = end_time - start_time
-
-    # total_results = sentiment_results_df.count()
 
     # Memory after processing
     memory_after = measure_memory()
