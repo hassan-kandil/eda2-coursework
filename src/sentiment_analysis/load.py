@@ -1,4 +1,5 @@
-from pyspark.sql.functions import col
+
+from pyspark.sql.functions import col, rand
 from pyspark.sql.types import (
     StringType,
     FloatType,
@@ -11,7 +12,8 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from .config import logger
 
 
-def load_amazon_reviews(spark, file_path, sample_ratio=None):
+
+def load_amazon_reviews(spark, file_path, sample_ratio=None, num_samples=None, seed=42):
     """
     Load Amazon reviews from a JSON Lines file.
     Optionally sample a fraction of the data for testing.
@@ -31,9 +33,16 @@ def load_amazon_reviews(spark, file_path, sample_ratio=None):
     # Load the dataset with the predefined schema
     reviews_df = spark.read.schema(input_schema).json(file_path)
 
+    # Order by a random value to effectively shuffle the data
+    reviews_df = reviews_df.orderBy(rand(seed))
+
     # Sample if ratio provided
     if sample_ratio and 0 < sample_ratio < 1:
-        reviews_df = reviews_df.sample(withReplacement=False, fraction=sample_ratio, seed=42)
+        reviews_df = reviews_df.sample(withReplacement=False, fraction=sample_ratio, seed=seed)
+    
+    # Apply limit if specified
+    if num_samples:
+        reviews_df = reviews_df.limit(num_samples)
 
     # Cache the dataframe to improve performance
     reviews_df.cache()
