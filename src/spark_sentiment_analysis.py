@@ -174,12 +174,12 @@ def main():
     reviews_df = load_amazon_reviews(spark, input_path, args.sample_ratio)
 
     # Count total reviews
-    total_reviews_processed = reviews_df.count()
-    logger.info(f"Starting to handle all {total_reviews_processed:,} reviews")
-    update_progress("Data loaded", 0, total_reviews_processed, overall_start_time)
+    total_reviews = reviews_df.count()
+    logger.info(f"Starting to handle all {total_reviews:,} reviews")
+    update_progress("Data loaded", 0, total_reviews, overall_start_time)
 
     # Load model and tokenizer
-    update_progress("Loading model", 0, total_reviews_processed, overall_start_time)
+    update_progress("Loading model", 0, total_reviews, overall_start_time)
     tokenizer, model = load_model()
 
     # Broadcast model and tokenizer to all workers
@@ -189,7 +189,7 @@ def main():
         process.bc_model = spark.sparkContext.broadcast(model)
 
     # Repartition the DataFrame for optimal processing
-    update_progress("Repartitioning data", 0, total_reviews_processed, overall_start_time)
+    update_progress("Repartitioning data", 0, total_reviews, overall_start_time)
     target_partition_size_mb = 128
     reviews_df = preprocess.repartition_dataset(spark, input_path, reviews_df, target_partition_size_mb)
 
@@ -197,15 +197,15 @@ def main():
     total_reviews_before_preprocessing = reviews_df.count()
 
     # Preprocess the reviews
-    update_progress("Preprocessing reviews", 0, total_reviews_processed, overall_start_time)
+    update_progress("Preprocessing reviews", 0, total_reviews_before_preprocessing, overall_start_time)
     reviews_df = preprocess.preprocess_reviews(reviews_df, text_column="text", output_column="preprocessed_text")
 
     # Get current count after preprocessing
-    total_reviews = reviews_df.count()
+    total_reviews_to_process = reviews_df.count()
 
     # Process reviews for sentiment analysis
     logger.info("Starting to process reviews for sentiment analysis...")
-    update_progress("Starting sentiment analysis", 0, total_reviews, overall_start_time)
+    update_progress("Starting sentiment analysis", 0, total_reviews_to_process, overall_start_time)
 
     # Create a counter to track progress
     processed_count = spark.sparkContext.accumulator(0)
@@ -218,7 +218,7 @@ def main():
     stop_monitor = threading.Event()
     monitor_thread = threading.Thread(
         target=monitor_progress_thread,
-        args=(processed_count, total_reviews, overall_start_time, stop_monitor),
+        args=(processed_count, total_reviews_to_process, overall_start_time, stop_monitor),
     )
     monitor_thread.daemon = True
     monitor_thread.start()

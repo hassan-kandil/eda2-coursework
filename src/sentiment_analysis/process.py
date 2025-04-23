@@ -66,11 +66,12 @@ def _batch_sentiment_analysis(review_texts: pd.Series) -> pd.DataFrame:
     """
     global bc_tokenizer, bc_model
     logger.info(f"Processing {len(review_texts)} reviews...")
-    tokenizer, model = bc_tokenizer.value, bc_model.value
-    if tokenizer is None or model is None:
+    if bc_tokenizer is None or bc_model is None:
         logger.info("Loading tokenizer and model since they are uninitialized...")
         # Load the tokenizer and model
         tokenizer, model = load_model()
+    else:
+        tokenizer, model = bc_tokenizer.value, bc_model.value
     model.eval()  # Set model to evaluation mode
 
     # Set the number of threads for PyTorch
@@ -151,13 +152,11 @@ def process_reviews(
     )
     # Flatten the result column
     sentiment_results_df = sentiment_results_df.select(
-        col("asin"),
-        col("user_id"),
-        col("text"),
-        col("result.token_count"),
-        col("result.sentiment"),
-        col("result.score"),
-    )
+        "*",  # Include all existing columns
+        col("result.token_count").alias("token_count"),
+        col("result.sentiment").alias("sentiment"),
+        col("result.score").alias("score"),
+    ).drop("result")
     # Cache dataframe to prevent recomputations
     logger.info("Caching results dataframe...")
     sentiment_results_df = sentiment_results_df.cache()
