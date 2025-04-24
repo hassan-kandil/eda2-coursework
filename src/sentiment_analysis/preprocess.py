@@ -32,9 +32,7 @@ def _get_hdfs_file_size_in_mb(sc, file_path):
     return file_size_mb
 
 
-def repartition_dataset(
-    spark, input_file_path, reviews_df, target_partition_size_mb=128
-):
+def repartition_dataset(spark, input_file_path, reviews_df, target_partition_size_mb=128):
     """
     Repartition the DataFrame to optimize for processing.
     This function repartitions the DataFrame based on the target partition size.
@@ -60,15 +58,14 @@ def repartition_dataset(
     task_cpus = int(spark.conf.get("spark.task.cpus", "1"))
     min_partitions = total_cores // task_cpus
     num_partitions = round_up_to_multiple(num_partitions, min_partitions)
+    num_partitions = 15
 
     # Repartition the DataFrame
     logger.info(
         f"Repartitioning DataFrame into {num_partitions} partitions based on {file_size_mb:.2f}MB file size and {target_partition_size_mb}MB target partition size..."
     )
     repartitioned_df = reviews_df.repartition(num_partitions)
-    logger.info(
-        f"Repartitioned DataFrame into {repartitioned_df.rdd.getNumPartitions()} partitions."
-    )
+    logger.info(f"Repartitioned DataFrame into {repartitioned_df.rdd.getNumPartitions()} partitions.")
     return repartitioned_df
 
 
@@ -147,9 +144,7 @@ def preprocess_reviews(df, text_column="text", output_column="preprocessed_text"
     df = df.withColumn("text_length", length(col(text_column)))
 
     # 3. Apply the preprocessing UDF
-    preprocessed_df = df.withColumn(
-        output_column, _preprocess_text_udf(df[text_column])
-    )
+    preprocessed_df = df.withColumn(output_column, _preprocess_text_udf(df[text_column]))
 
     # Cache the preprocessed DataFrame to improve performance
     preprocessed_df.cache()
@@ -157,9 +152,7 @@ def preprocess_reviews(df, text_column="text", output_column="preprocessed_text"
     # Log preprocessing results
     final_count = preprocessed_df.count()
     rejected_count = original_count - final_count
-    logger.info(
-        f"Preprocessing complete: {final_count:,} reviews retained, {rejected_count:,} filtered out"
-    )
+    logger.info(f"Preprocessing complete: {final_count:,} reviews retained, {rejected_count:,} filtered out")
     logger.info(f"Rejection rate: {100 * rejected_count / original_count:.2f}%")
 
     return preprocessed_df

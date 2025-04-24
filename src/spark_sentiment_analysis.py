@@ -1,4 +1,5 @@
 import argparse
+from datetime import datetime
 import sys
 import time
 import json
@@ -121,6 +122,25 @@ def save_final_summary(
     with open("/tmp/sentiment_analysis_metrics.json", "w") as f:
         json.dump(metrics, f, indent=2)
 
+    return metrics
+
+
+def write_summary_to_hdfs_csv(spark, metrics, hdfs_path):
+    """Save summary metrics as CSV file to HDFS using Spark DataFrame"""
+    # Convert metrics dictionary to a list for Spark DataFrame
+    metrics_list = [metrics]
+
+    # Create a Spark DataFrame directly
+    metrics_spark_df = spark.createDataFrame(metrics_list)
+
+    # Write directly to HDFS as CSV
+    hdfs_csv_path = f"{hdfs_path}/sentiment_analysis_run_metrics.csv"
+
+    # Write with header, single file output
+    metrics_spark_df.coalesce(1).write.mode("overwrite").option("header", "true").csv(hdfs_csv_path)
+
+    logger.info(f"Saved summary metrics CSV to HDFS: {hdfs_csv_path} using Spark DataFrame")
+
 
 def parse_arguments():
     """Parse command line arguments"""
@@ -138,6 +158,7 @@ def parse_arguments():
     parser.add_argument(
         "--sample-ratio", type=float, default=1.0, help="Sample ratio (0.0-1.0) of the dataset to process"
     )
+    parser.add_argument("--samples", type=int, default=None, help="Number of samples to process")
     parser.add_argument(
         "--output-dir", type=str, default="/analysis_outputs", help="HDFS output directory for analysis results"
     )
@@ -156,9 +177,12 @@ def main():
 
     dataset_name = args.dataset
     input_path = f"/{dataset_name}.jsonl"
+    # Generate a unique timestamp identifier
+    run_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
     # Set output paths
     analysis_output_path, summary_output_path = (
-        f"{args.output_dir}/{dataset_name}",
+        f"{args.output_dir}/{dataset_name}_{run_timestamp}",
         f"{args.summary_dir}/{dataset_name}",
     )
 
@@ -171,7 +195,7 @@ def main():
 
     # Load the dataset
     update_progress("Loading data", start_time=overall_start_time)
-    reviews_df = load_amazon_reviews(spark, input_path, args.sample_ratio)
+    reviews_df = load_amazon_reviews(spark, input_path, args.sample_ratio, args.samples)
 
     # Count total reviews
     total_reviews = reviews_df.count()
@@ -188,11 +212,6 @@ def main():
         process.bc_tokenizer = spark.sparkContext.broadcast(tokenizer)
         process.bc_model = spark.sparkContext.broadcast(model)
 
-    # Repartition the DataFrame for optimal processing
-    update_progress("Repartitioning data", 0, total_reviews, overall_start_time)
-    target_partition_size_mb = 128
-    reviews_df = preprocess.repartition_dataset(spark, input_path, reviews_df, target_partition_size_mb)
-
     # Get count before preprocessing
     total_reviews_before_preprocessing = reviews_df.count()
 
@@ -202,6 +221,11 @@ def main():
 
     # Get current count after preprocessing
     total_reviews_to_process = reviews_df.count()
+
+    # Repartition the DataFrame for optimal processing
+    update_progress("Repartitioning data", 0, total_reviews_to_process, overall_start_time)
+    target_partition_size_mb = 128
+    reviews_df = preprocess.repartition_dataset(spark, input_path, reviews_df, target_partition_size_mb)
 
     # Process reviews for sentiment analysis
     logger.info("Starting to process reviews for sentiment analysis...")
@@ -275,7 +299,7 @@ def main():
     total_duration = overall_end_time - overall_start_time
 
     # Save final summary and metrics
-    save_final_summary(
+    metrics = save_final_summary(
         total_reviews_processed,
         total_reviews_before_preprocessing,
         total_duration,
@@ -283,6 +307,9 @@ def main():
         partitions_count,
         token_stats,
     )
+
+    write_summary_to_hdfs_csv(spark, metrics, analysis_output_path)
+    logger.info(f"Summary metrics saved to HDFS: {analysis_output_path}")
 
     # Stop Spark session
     spark.stop()
