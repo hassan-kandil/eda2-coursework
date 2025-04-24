@@ -34,21 +34,12 @@ from sentiment_analysis.config import logger
 from sentiment_analysis.utils import delete_local_file, run_command
 from sentiment_analysis.load import load_amazon_reviews, load_model
 import sentiment_analysis.process as process
+import sentiment_analysis.postprocess as postprocess
+
 
 # PyTorch and transformers imports
 import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
-
-
-def measure_memory():
-    """Measure current process memory usage"""
-    # Force garbage collection to get accurate measurements
-    gc.collect()
-
-    # Get process memory info
-    process = psutil.Process(os.getpid())
-    memory_mb = process.memory_info().rss / (1024 * 1024)
-    return memory_mb
 
 
 def compute_token_counts(df, tokenizer):
@@ -104,19 +95,19 @@ def load_data(spark, file_path, tokenizer, limit=None):
     )
 
     # Compute token counts and get statistics
-    reviews_df_with_tokens, token_stats = compute_token_counts(reviews_df, tokenizer)
+    # reviews_df_with_tokens, token_stats = compute_token_counts(reviews_df, tokenizer)
 
     # Cache the DataFrame to improve performance
-    reviews_df_with_tokens.cache()
+    reviews_df.cache()
 
     # Count and log the number of reviews
-    count = reviews_df_with_tokens.count()
+    count = reviews_df.count()
     logger.info(f"Loaded {count} reviews from {file_path}")
 
-    return reviews_df_with_tokens, token_stats
+    return reviews_df
 
 
-def run_spark_benchmark(data_file, num_cores, num_samples):
+def run_spark_benchmark(data_file, num_cores, sample_ratio, num_samples):
     """Run a benchmark with the specified number of Spark cores"""
     logger.info(f"\n=== Testing with {num_cores} Spark cores (PyTorch threads=1) ===")
 
@@ -134,8 +125,8 @@ def run_spark_benchmark(data_file, num_cores, num_samples):
     # Load model and tokenizer first (needed for token counting)
     tokenizer, model = load_model()
     
-    # Load data with token statistics
-    data_df, token_stats = load_data(spark_session, data_file, tokenizer, num_samples)
+    # Load data
+    data_df = load_amazon_reviews(spark=spark_session, file_path=data_file, sample_ratio=sample_ratio, num_samples=num_samples)
     logger.info(f"Loaded {data_df.count()} reviews for processing")
 
     # Repartition the DataFrame to match the number of cores
@@ -147,12 +138,9 @@ def run_spark_benchmark(data_file, num_cores, num_samples):
     process.bc_tokenizer = spark_session.sparkContext.broadcast(tokenizer)
     process.bc_model = spark_session.sparkContext.broadcast(model)
 
-    # Memory before processing
-    memory_before = measure_memory()
-    logger.info(f"Memory before processing: {memory_before:.2f} MB")
-
     # Apply sentiment analysis
     analysis_output_path = f"/analysis_outputs/cores_{num_cores}_results.csv"
+    summary_output_path = f"/analysis_outputs/summary_{num_cores}_results.csv"
     start_time = time.time()
     sentiment_analysis_results_df = process.process_reviews(
         reviews_df=reviews_df,
@@ -165,24 +153,20 @@ def run_spark_benchmark(data_file, num_cores, num_samples):
         f"Sentiment analysis completed in {total_time:.1f} seconds with average speed of {total_results / total_time:.1f} reviews/second"
     )
 
-    # Memory after processing
-    memory_after = measure_memory()
-    memory_increase = memory_after - memory_before
+    # Generate token statistics
+    token_stats = postprocess.generate_token_statistics(sentiment_analysis_results_df, summary_output_path)
 
     # Calculate metrics
     metrics = {
         "cores": num_cores,
         "total_samples": total_results,
         "total_tokens": token_stats["total_tokens"],
-        "min_tokens": token_stats["min_tokens"],
-        "max_tokens": token_stats["max_tokens"],
-        "avg_tokens": float(token_stats["avg_tokens"]),
+        "min_tokens": token_stats["min_token_count"],
+        "max_tokens": token_stats["max_token_count"],
+        "avg_tokens": float(token_stats["mean_token_count"]),
         "total_time": total_time,
         "throughput_samples_per_second": total_results / total_time,
-        "throughput_tokens_per_second": token_stats["total_tokens"] / total_time,
-        "memory_before_mb": memory_before,
-        "memory_after_mb": memory_after,
-        "memory_increase_mb": memory_increase,
+        "throughput_tokens_per_second": token_stats["total_tokens"] / total_time
     }
 
     # Print results
@@ -193,9 +177,6 @@ def run_spark_benchmark(data_file, num_cores, num_samples):
     )
     logger.info(
         f"  Token throughput: {metrics['throughput_tokens_per_second']:.2f} tokens/second"
-    )
-    logger.info(
-        f"  Memory: {memory_before:.1f} MB → {memory_after:.1f} MB (increase: {memory_increase:.1f} MB)"
     )
 
     # Save metrics to file
@@ -208,7 +189,7 @@ def run_spark_benchmark(data_file, num_cores, num_samples):
     time.sleep(2)
 
     return metrics
-
+    
 
 def plot_results(all_metrics):
     """Create plots for benchmark results"""
@@ -380,6 +361,9 @@ def main():
         help="Path to JSONL file with reviews",
     )
     parser.add_argument(
+        "--sample-ratio", type=float, default=1.0, help="Sample ratio (0.0-1.0) of the dataset to process"
+    )
+    parser.add_argument(
         "--samples", type=int, default=1000, help="Number of samples to process"
     )
     parser.add_argument(
@@ -405,7 +389,7 @@ def main():
     all_metrics = []
 
     for cores in core_counts:
-        metrics = run_spark_benchmark(args.data, cores, args.samples)
+        metrics = run_spark_benchmark(args.data, cores, args.sample_ratio, args.samples)
         if metrics:
             all_metrics.append(metrics)
 
