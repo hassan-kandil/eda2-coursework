@@ -16,6 +16,7 @@ import pandas as pd
 import torch
 import subprocess
 import argparse
+import random
 from tqdm import tqdm
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import matplotlib.pyplot as plt
@@ -24,10 +25,14 @@ def load_data(file_path, limit=1000):
     """Load Amazon reviews from JSONL file"""
     reviews = []
     with open(file_path, "r") as f:
-        for i, line in enumerate(f):
-            if i >= limit:
-                break
-            reviews.append(json.loads(line))
+        reviews = [json.loads(line) for line in f]
+    
+    # Shuffle the reviews
+    random.shuffle(reviews)
+    
+    # Limit to requested number
+    if limit > 0 and limit < len(reviews):
+        reviews = reviews[:limit]
     
     print(f"Loaded {len(reviews)} reviews from {file_path}")
     return [review["text"] for review in reviews]
@@ -165,7 +170,7 @@ def monitor_cpu_during_processing(reviews_to_process, tokenizer, model):
         "memory_metrics": memory_metrics
     }
 
-def run_single_benchmark(threads, reviews, num_samples=500):
+def run_single_benchmark(threads, reviews):
     """Run a single benchmark with equal intra/inter thread configuration"""
     # Clear memory before starting
     gc.collect()
@@ -192,13 +197,11 @@ def run_single_benchmark(threads, reviews, num_samples=500):
     model_memory = measure_memory()
     model_increase = model_memory - initial_memory
     print(f"Memory after model loading: {model_memory:.2f} MB (increase: {model_increase:.2f} MB)")
-    
-    # Limit reviews to requested sample size
-    reviews_to_process = reviews[:num_samples]
-    print(f"Processing {len(reviews_to_process)} reviews")
+  
+    print(f"Processing {len(reviews)} reviews")
     
     # Process reviews with CPU and memory monitoring
-    results = monitor_cpu_during_processing(reviews_to_process, tokenizer, model)
+    results = monitor_cpu_during_processing(reviews, tokenizer, model)
     
     # Extract results
     processing_times = results["processing_times"]
@@ -211,14 +214,14 @@ def run_single_benchmark(threads, reviews, num_samples=500):
     metrics = {
         "threads": threads,
         "total_threads": threads * 2,  # Total of intra + inter
-        "total_samples": len(reviews_to_process),
+        "total_samples": len(reviews),
         "total_time": total_time,
         "avg_time_per_sample": np.mean(processing_times),
         "max_time_per_sample": np.max(processing_times),
         "min_time_per_sample": np.min(processing_times),
         "total_tokens": sum(token_counts),
         "throughput_tokens_per_second": sum(token_counts) / total_time,
-        "throughput_reviews_per_second": len(reviews_to_process) / total_time,
+        "throughput_reviews_per_second": len(reviews) / total_time,
         "initial_memory_mb": initial_memory,
         "model_memory_mb": model_memory,
         "peak_memory_mb": memory_metrics["peak_memory_mb"],
@@ -432,7 +435,7 @@ def plot_results(all_metrics):
         
         print(f"{m['threads']:<8} {m['total_time']:<10.2f} "
               f"{m['throughput_tokens_per_second']:<12.2f} {speedup:<10.2f}x {efficiency:<10.2f} "
-              f"{m['active_cpu_cores']:<13d} {m['memory_increase_mb']:<12.2f}")
+              f"{m['active_cpu_cores']:<12.2f} {m['memory_increase_mb']:<12.2f}")
     
     print("="*100)
     
@@ -451,8 +454,13 @@ def main():
                         help="Path to data file")
     parser.add_argument("--samples", type=int, default=100,
                         help="Number of samples to process")
+    parser.add_argument("--seed", type=int, default=42,
+                        help="Random seed for reproducibility")
     
     args = parser.parse_args()
+    
+    # Set random seed for reproducibility
+    random.seed(args.seed)
     
     # Check if data file exists
     if not os.path.exists(args.data):
@@ -461,14 +469,16 @@ def main():
     
     # Single benchmark mode (called as subprocess)
     if args.mode == "single":
-        reviews = load_data(args.data, limit=args.samples * 2)  # Load a bit more than needed
-        run_single_benchmark(args.threads, reviews, args.samples)
+        # Load reviews and shuffle them
+        reviews = load_data(args.data, args.samples)
+        run_single_benchmark(args.threads, reviews)
         return 0
     
     # Multi-configuration benchmark mode
     print("Starting PyTorch Thread Scaling Benchmark")
     print(f"Data file: {args.data}")
     print(f"Samples per test: {args.samples}")
+    print(f"Random seed: {args.seed}")
     
     # Define thread counts to test (equal intra and inter)
     thread_counts = [1, 2, 3, 4]
