@@ -1,2 +1,2 @@
-cores,total_samples,total_time,throughput_samples_per_second,memory_before_mb,memory_after_mb,memory_increase_mb
-1,1000,191.58257031440735,5.219681510478191,1007.5078125,1007.5078125,0.0
+cores,total_samples,total_tokens,min_tokens,max_tokens,avg_tokens,total_time,throughput_samples_per_second,throughput_tokens_per_second
+1,10000,343003,2,128,34.3003,1874.1537885665894,5.3357414215448715,183.01753148141555
