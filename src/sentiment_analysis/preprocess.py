@@ -58,7 +58,6 @@ def repartition_dataset(spark, input_file_path, reviews_df, target_partition_siz
     task_cpus = int(spark.conf.get("spark.task.cpus", "1"))
     min_partitions = total_cores // task_cpus
     num_partitions = round_up_to_multiple(num_partitions, min_partitions)
-    num_partitions = 15
 
     # Repartition the DataFrame
     logger.info(
