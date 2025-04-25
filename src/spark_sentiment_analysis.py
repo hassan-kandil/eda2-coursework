@@ -157,7 +157,7 @@ def parse_arguments():
     parser.add_argument(
         "--sample-ratio", type=float, default=1.0, help="Sample ratio (0.0-1.0) of the dataset to process"
     )
-    parser.add_argument("--samples", type=int, default=None, help="Number of samples to process")
+    parser.add_argument("--sample-count", type=int, default=None, help="Number of samples to process")
     parser.add_argument(
         "--output-dir", type=str, default="/analysis_outputs", help="HDFS output directory for analysis results"
     )
@@ -192,7 +192,7 @@ def main():
 
     # Load the dataset
     update_progress("Loading data", start_time=overall_start_time)
-    reviews_df = load_amazon_reviews(spark, input_path, args.sample_ratio, args.samples)
+    reviews_df = load_amazon_reviews(spark, input_path, args.sample_ratio, args.sample_count)
 
     # Count total reviews
     total_reviews = reviews_df.count()

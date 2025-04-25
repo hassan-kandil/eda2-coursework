@@ -21,6 +21,8 @@ function show_help {
     echo "                             Only needed if dataset isn't predefined"
     echo "  -s, --sample RATIO         Sample ratio of data to process (0.0-1.0)"
     echo "                             Default: 1.0 (use all data)"
+    echo "  -c, --sample-count COUNT   Sample count of data to process (integer)"
+    echo "                             Default: use all data"
     echo
     echo "Examples:"
     echo "  ./run_sentiment_analysis.sh --dataset Subscription_Boxes"
@@ -49,6 +51,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -s|--sample-ratio)
             SAMPLE_RATIO="$2"
+            shift 2
+            ;;
+        -c|--sample-count)
+            SAMPLE_COUNT="$2"
             shift 2
             ;;
         *)
@@ -109,7 +115,7 @@ fi
 echo "Submitting sentiment analysis job on dataset $DATASET..."
 
 nohup spark-submit --deploy-mode cluster --master yarn spark_sentiment_analysis.py \
-        --dataset $DATASET --sample-ratio $SAMPLE_RATIO > job_output.log 2>&1 &
+        --dataset $DATASET --sample-ratio $SAMPLE_RATIO --sample-count $SAMPLE_COUNT > job_output.log 2>&1 &
 
 echo "Analysis job submitted successfully!"
 echo "You can monitor the job status using YARN dashboard: https://ucabhhk-yarn.comp0235.condenser.arc.ucl.ac.uk/cluster"

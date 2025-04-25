@@ -102,7 +102,7 @@ run_spark_test() {
         --conf spark.default.parallelism=$total_cores \
         spark_sentiment_analysis.py \
         --dataset $DATASET \
-        --samples $SAMPLES \
+        --sample-count $SAMPLES \
         --output-dir $OUTPUT_DIR/${config_name} \
         --summary-dir $SUMMARY_DIR/${config_name}"
     
