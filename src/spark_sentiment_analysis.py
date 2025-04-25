@@ -71,12 +71,16 @@ def monitor_progress_thread(processed_count, total_count, start_time, stop_event
 def save_final_summary(
     total_reviews_processed,
     total_reviews_before_preprocessing,
-    total_duration,
+    overall_start_time,
+    overall_end_time,
     process_duration,
     partitions_count,
     token_stats,
 ):
     """Save the final summary and metrics to files."""
+    # Calculate total duration
+    total_duration = overall_end_time - overall_start_time
+
     # Save final summary to progress file
     total_tokens, avg_tokens = token_stats["total_tokens"], token_stats["mean_token_count"]
     min_tokens, max_tokens = token_stats["min_token_count"], token_stats["max_token_count"]
@@ -112,7 +116,8 @@ def save_final_summary(
         "processing_time_seconds": process_duration,
         "reviews_per_second": (total_reviews_processed / process_duration if process_duration > 0 else 0),
         "total_time_seconds": total_duration,
-        "completed_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "started_at": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(overall_start_time)),
+        "completed_at": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(overall_end_time)),
         "total_tokens": total_tokens,
         "avg_tokens_per_review": avg_tokens,
         "min_tokens_per_review": min_tokens,
@@ -276,11 +281,6 @@ def main():
     # Generate token statistics
     token_stats = postprocess.generate_token_statistics(sentiment_analysis_results_df, summary_output_path)
 
-    # Prepare output files
-    update_progress("Preparing output files", total_reviews_processed, total_reviews_processed, overall_start_time)
-    postprocess.compress_hdfs_output_dir(analysis_output_path)
-    postprocess.compress_hdfs_output_dir(summary_output_path)
-
     # Clean up temporary files
     update_progress("Cleaning up", total_reviews_processed, total_reviews_processed, overall_start_time)
 
@@ -293,20 +293,23 @@ def main():
 
     # Calculate overall metrics
     overall_end_time = time.time()
-    total_duration = overall_end_time - overall_start_time
 
     # Save final summary and metrics
     metrics = save_final_summary(
         total_reviews_processed,
         total_reviews_before_preprocessing,
-        total_duration,
+        overall_start_time,
+        overall_end_time,
         process_duration,
         partitions_count,
         token_stats,
     )
 
-    write_summary_to_hdfs_csv(spark, metrics, analysis_output_path)
-    logger.info(f"Summary metrics saved to HDFS: {analysis_output_path}")
+    write_summary_to_hdfs_csv(spark, metrics, summary_output_path)
+    logger.info(f"Summary metrics saved to HDFS: {summary_output_path}")
+
+    # Compress the summary output directory
+    postprocess.compress_hdfs_output_dir(summary_output_path)
 
     # Stop Spark session
     spark.stop()
