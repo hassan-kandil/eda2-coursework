@@ -106,13 +106,15 @@ if [[ $HDFS_EXISTS -ne 0 ]]; then
 
 fi
 
-echo "Starting sentiment analysis job on dataset $DATASET..."
+echo "Submitting sentiment analysis job on dataset $DATASET..."
 
 nohup spark-submit --deploy-mode cluster --master yarn spark_sentiment_analysis.py \
         --dataset $DATASET --sample-ratio $SAMPLE_RATIO > job_output.log 2>&1 &
 
 echo "Analysis job submitted successfully!"
-echo "You can monitor the job status using YARN dashboard."
+echo "You can monitor the job status using YARN dashboard: https://ucabhhk-yarn.comp0235.condenser.arc.ucl.ac.uk/cluster"
 echo "Job output will be saved in HDFS under /summary_outputs/$DATASET"
 echo "You can download the output files using:"
-echo "hdfs dfs -get /summary_outputs/$DATASET ."
+echo "hdfs dfs -get /summary_outputs/$DATASET"
+echo "Or using curl as .tar.gz file:"
+echo "curl 'https://ucabhhk-nginx.comp0235.condenser.arc.ucl.ac.uk/webhdfs/v1/summary_outputs_$DATASET.tar.gz?op=OPEN&user.name=almalinux' -o summary_outputs_$DATASET.tar.gz"
