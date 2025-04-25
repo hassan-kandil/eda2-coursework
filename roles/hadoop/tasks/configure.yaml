@@ -96,7 +96,7 @@
       </property>
       <property>
           <name>yarn.scheduler.maximum-allocation-mb</name>
-          <value>14336</value>
+          <value>28672</value>
       </property>
     state: present
 - name: config mapred-site.xml
