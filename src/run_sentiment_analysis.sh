@@ -47,7 +47,7 @@ while [[ $# -gt 0 ]]; do
             LOCAL_INPUT_FILE="$2"
             shift 2
             ;;
-        -s|--sample)
+        -s|--sample-ratio)
             SAMPLE_RATIO="$2"
             shift 2
             ;;
@@ -109,7 +109,7 @@ fi
 echo "Starting sentiment analysis job on dataset $DATASET..."
 
 nohup spark-submit --deploy-mode cluster --master yarn spark_sentiment_analysis.py \
-        --dataset $DATASET --sample $SAMPLE_RATIO > job_output.log 2>&1 &
+        --dataset $DATASET --sample-ratio $SAMPLE_RATIO > job_output.log 2>&1 &
 
 echo "Analysis job submitted successfully!"
 echo "You can monitor the job status using YARN dashboard."

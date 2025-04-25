@@ -78,6 +78,7 @@ run_spark_test() {
     local num_executors=$2
     local executor_cores=$3
     local executor_memory=$4
+    local driver_memory=$5
     
     echo "=========================================================="
     echo "Starting test with configuration: $config_name"
@@ -96,7 +97,7 @@ run_spark_test() {
         --num-executors $num_executors \
         --executor-cores $executor_cores \
         --executor-memory $executor_memory \
-        --driver-memory 6G \
+        --driver-memory $driver_memory \
         --driver-cores 1 \
         --conf spark.default.parallelism=$total_cores \
         spark_sentiment_analysis.py \
@@ -112,8 +113,8 @@ run_spark_test() {
     nohup $cmd > ${config_name}_yarn.log 2>&1 &
     
     echo "Job submitted. Output is being logged to ${config_name}_yarn.log"
-    echo "Waiting 10 seconds before submitting next job..."
-    sleep 10
+    echo "Waiting 30 seconds before submitting next job..."
+    sleep 30
 }
 
 # Log script start
@@ -124,21 +125,21 @@ echo "Number of samples: $SAMPLES"
 # Run tests for each configuration
 echo "Will run 4 configuration tests:"
 echo "1. 15 executors with 1 core 6G RAM per executor"
-echo "2. 12 executors with 1 core 8G RAM per executor"
+echo "2. 12 executors with 1 core 6G RAM per executor"
 echo "3. 7 executors with 2 cores 12G RAM per executor"
-echo "4. 4 executors with 3 cores 24G RAM per executor"
+echo "4. 4 executors with 3 cores 18G RAM per executor"
 
 # Configuration 1: 15 executors with 1 core 6G RAM per executor
-run_spark_test "config1_15exec_1core_6G" 15 1 "6G"
+run_spark_test "config1_15exec_1core_6G" 15 1 "6G" "6G"
 
-# Configuration 2: 12 executors with 1 core 8G RAM per executor
-run_spark_test "config2_12exec_1core_8G" 12 1 "8G"
+# Configuration 2: 12 executors with 1 core 6G RAM per executor
+run_spark_test "config2_12exec_1core_6G" 12 1 "6G" "6G"
 
 # Configuration 3: 7 executors with 2 cores 12G RAM per executor
-run_spark_test "config3_7exec_2core_12G" 7 2 "12G"
+run_spark_test "config3_7exec_2core_12G" 7 2 "12G" "6G"
 
-# Configuration 4: 4 executors with 3 cores 24G RAM per executor
-run_spark_test "config4_4exec_3core_24G" 4 3 "24G"
+# Configuration 4: 4 executors with 3 cores 18G RAM per executor
+run_spark_test "config4_4exec_3core_18G" 4 3 "18G" "6G"
 
 echo "All jobs have been submitted!"
 echo "You can check the status using 'yarn application -list'"
