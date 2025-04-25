@@ -12,6 +12,7 @@ import sentiment_analysis.postprocess as postprocess
 from pyspark.sql import SparkSession
 from sentiment_analysis.config import logger
 from sentiment_analysis.load import load_amazon_reviews, load_model
+from sentiment_analysis.utils import write_df_to_hdfs_csv
 
 # Define progress file path as a constant
 PROGRESS_FILE = "/tmp/sentiment_analysis_progress.txt"
@@ -128,18 +129,16 @@ def save_final_summary(
 def write_summary_to_hdfs_csv(spark, metrics, hdfs_path):
     """Save summary metrics as CSV file to HDFS using Spark DataFrame"""
     # Convert metrics dictionary to a list for Spark DataFrame
+    logger.info(f"Writing the summary metrics to HDFS as CSV...")
     metrics_list = [metrics]
 
     # Create a Spark DataFrame directly
-    metrics_spark_df = spark.createDataFrame(metrics_list)
+    metrics_spark_df = spark.createDataFrame(metrics_list).coalesce(1)
 
-    # Write directly to HDFS as CSV
-    hdfs_csv_path = f"{hdfs_path}/sentiment_analysis_run_metrics.csv"
+    # Write the DataFrame to HDFS in CSV format
+    write_df_to_hdfs_csv(metrics_spark_df, hdfs_path, "summary_metrics")
 
-    # Write with header, single file output
-    metrics_spark_df.coalesce(1).write.mode("overwrite").option("header", "true").csv(hdfs_csv_path)
-
-    logger.info(f"Saved summary metrics CSV to HDFS: {hdfs_csv_path} using Spark DataFrame")
+    logger.info(f"Saved summary metrics CSV to HDFS: {hdfs_path} using Spark DataFrame")
 
 
 def parse_arguments():
@@ -177,12 +176,10 @@ def main():
 
     dataset_name = args.dataset
     input_path = f"/{dataset_name}.jsonl"
-    # Generate a unique timestamp identifier
-    run_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     # Set output paths
     analysis_output_path, summary_output_path = (
-        f"{args.output_dir}/{dataset_name}_{run_timestamp}",
+        f"{args.output_dir}/{dataset_name}",
         f"{args.summary_dir}/{dataset_name}",
     )
 

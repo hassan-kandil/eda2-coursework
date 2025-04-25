@@ -47,7 +47,8 @@ def round_up_to_multiple(n, multiple):
 def write_df_to_hdfs_csv(df, hdfs_path, csv_file_name):
     logger.info(f"WRITING ANALYSIS SUMMARY OUTPUT {csv_file_name} TO HDFS...")
     write_path = f"{hdfs_path}/{csv_file_name}"
-    df.write.option("header", "true").mode("overwrite").csv(write_path)
+    df.coalesce(1).write.option("header", "true").mode("overwrite").csv(write_path)
+    delete_from_hdfs(write_path + ".csv")
     hdfs_mv_cmd = [
         "/home/almalinux/hadoop-3.4.0/bin/hdfs",
         "dfs",
@@ -56,15 +57,20 @@ def write_df_to_hdfs_csv(df, hdfs_path, csv_file_name):
         write_path + ".csv",
     ]
     run_command(hdfs_mv_cmd)
-    hdfs_rm_cmd = [
+    delete_from_hdfs(write_path)
+    logger.info(f"Successfully wrote {csv_file_name} to HDFS at {hdfs_path}")
+
+
+def delete_from_hdfs(hdfs_path):
+    logger.info(f"DELETING FILE FROM HDFS {hdfs_path}...")
+    delete_command = [
         "/home/almalinux/hadoop-3.4.0/bin/hdfs",
         "dfs",
         "-rm",
         "-r",
-        write_path,
+        hdfs_path,
     ]
-    run_command(hdfs_rm_cmd)
-    logger.info(f"Successfully wrote {csv_file_name} to HDFS at {hdfs_path}")
+    run_command(delete_command)
 
 
 def upload_file_to_hdfs(local_file_path, hdfs_path):
