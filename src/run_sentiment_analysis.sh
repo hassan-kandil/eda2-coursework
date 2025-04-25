@@ -32,6 +32,7 @@ function show_help {
 
 # Default values
 SAMPLE_RATIO=1.0
+SAMPLE_COUNT=0
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -119,7 +120,7 @@ nohup spark-submit --deploy-mode cluster --master yarn spark_sentiment_analysis.
 
 echo "Analysis job submitted successfully!"
 echo "You can monitor the job status using YARN dashboard: https://ucabhhk-yarn.comp0235.condenser.arc.ucl.ac.uk/cluster"
-echo "Job output will be saved in HDFS under /summary_outputs/$DATASET"
+echo "Job output will be saved when the job is finished in HDFS under /summary_outputs/$DATASET"
 echo "You can download the output files using:"
 echo "hdfs dfs -get /summary_outputs/$DATASET"
 echo "Or using curl as .tar.gz file:"
