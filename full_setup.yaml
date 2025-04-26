@@ -53,3 +53,7 @@
   roles:
     - grafana
 
+- name: Setup sentiment analysis pipeline
+  hosts: all
+  roles:
+    - pipeline

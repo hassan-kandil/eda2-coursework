@@ -1,6 +1,9 @@
 datasets:
   - "Subscription_Boxes"
-  - "Software"
+  - "Magazine_Subscriptions"
+  - "All_Beauty"
+  - "Appliances"
+  - "Arts_Crafts_and_Sewing"
 output_directories:
   - "/analysis_outputs/"
   - "/summary_outputs/"
