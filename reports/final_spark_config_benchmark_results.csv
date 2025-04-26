@@ -1,0 +1,5 @@
+config_name,avg_tokens_per_review,completed_at,max_tokens_per_review,min_tokens_per_review,partitions_count,processing_time_seconds,reviews_per_partition,reviews_per_second,tokens_per_second,total_reviews,total_time_seconds,total_tokens,avg_node_cpu_usage_percent,max_node_cpu_usage_percent,avg_node_memory_usage_gb,max_node_memory_usage_gb
+config1_15exec_1core_6G,34.14197549,4/25/2025 1:18,128,3,15,1451.708235,6654,68.75555127,2347.450347,99813,1543.290132,3407813,92.3,99.3,12.1,12.9
+config2_12exec_1core_6G,34.14197549,4/25/2025 1:50,128,3,12,1796.349779,8317,55.56434562,1897.076527,99813,1883.135914,3407813,73,76.1,11.5,12.2
+config3_7exec_2core_12G,34.14197549,4/25/2025 2:16,128,3,14,1470.522615,7129,67.87586875,2317.416247,99813,1561.994352,3407813,89,99.3,9.43,10.8
+config4_4exec_3core_18G,34.14197549,4/25/2025 2:47,128,3,12,1766.819216,8317,56.49304644,1928.784207,99813,1844.604561,3407813,71.9,75.9,9.58,10.5
