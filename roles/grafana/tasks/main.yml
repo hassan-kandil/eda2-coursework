@@ -22,3 +22,28 @@
     url: http://127.0.0.1:3000
     method: GET
     status_code: 200
+
+- name: Add Prometheus as data source
+  community.grafana.grafana_datasource:
+    name: "Prometheus"
+    ds_type: "prometheus"
+    ds_url: "https://ucabhhk-prometheus.comp0235.condenser.arc.ucl.ac.uk"
+    grafana_url: "https://ucabhhk-grafana.comp0235.condenser.arc.ucl.ac.uk"
+    grafana_user: "admin"
+    grafana_password: "admin" 
+    is_default: true
+    time_interval: "10s"  
+    state: present
+
+- name: Import Grafana dashboard
+  community.grafana.grafana_dashboard:
+    grafana_url: "https://ucabhhk-grafana.comp0235.condenser.arc.ucl.ac.uk"
+    grafana_user: "admin"
+    grafana_password: "admin"
+    validate_certs: false
+    state: present
+    commit_message: "Updated by Ansible"
+    overwrite: true
+    dashboard_id: "1860"  
+    dashboard_revision: 39
+      
