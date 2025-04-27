@@ -33,7 +33,7 @@ The sentiment analysis system runs currently on a distributed cluster with the f
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/eda2-coursework.git
+git clone https://github.com/hassan-kandil/eda2-coursework.git
 cd eda2-coursework
 ```
 
@@ -191,6 +191,16 @@ The sentiment analysis system generates several output files that provide detail
    - Statistics about tokenization of reviews
 5. **summary_metrics.csv**
    - Performance metrics of the sentiment analysis job
+
+### Visualisations
+
+The system also generates visualisations of the sentiment analysis results:
+
+1. **Bar Chart Visualization**
+   - Shows the count of reviews by sentiment (NEG, NEU, POS)
+
+2. **Pie Chart Visualization**
+   - Shows the percentage breakdown of sentiments
 
 ## Cleaning Up
 
