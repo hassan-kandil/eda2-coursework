@@ -113,15 +113,19 @@ if [[ $HDFS_EXISTS -ne 0 ]]; then
 
 fi
 
-echo "Submitting sentiment analysis job on dataset $DATASET..."
+echo "Running sentiment analysis job on dataset $DATASET..."
+echo "You can monitor the job status using YARN dashboard: https://ucabhhk-yarn.comp0235.condenser.arc.ucl.ac.uk/cluster"
 
 nohup spark-submit --deploy-mode cluster --master yarn spark_sentiment_analysis.py \
-        --dataset $DATASET --sample-ratio $SAMPLE_RATIO --sample-count $SAMPLE_COUNT > job_output.log 2>&1 &
+        --dataset $DATASET --sample-ratio $SAMPLE_RATIO --sample-count $SAMPLE_COUNT > job_output.log 2>&1 
 
-echo "Analysis job submitted successfully!"
-echo "You can monitor the job status using YARN dashboard: https://ucabhhk-yarn.comp0235.condenser.arc.ucl.ac.uk/cluster"
-echo "Job output will be saved when the job is finished in HDFS under /summary_outputs/$DATASET"
-echo "You can download the output files using:"
-echo "hdfs dfs -get /summary_outputs/$DATASET"
-echo "Or using curl as .tar.gz file:"
+echo "Job is done. The job output files are saved in HDFS under /summary_outputs/$DATASET"
+echo "Downloading the output files from HDFS..."
+hdfs dfs -get /summary_outputs/$DATASET summary_outputs_$DATASET
+if [[ $? -ne 0 ]]; then
+    echo "Error: Failed to download output files from HDFS"
+    exit 1
+fi
+echo "Output files downloaded successfully to summary_outputs_$DATASET in the current directory."
+echo "You can also download the output files using curl as .tar.gz file:"
 echo "curl 'https://ucabhhk-nginx.comp0235.condenser.arc.ucl.ac.uk/webhdfs/v1/summary_outputs_$DATASET.tar.gz?op=OPEN&user.name=almalinux' -o summary_outputs_$DATASET.tar.gz"

@@ -226,8 +226,7 @@ def main():
 
     # Repartition the DataFrame for optimal processing
     update_progress("Repartitioning data", 0, total_reviews_to_process, overall_start_time)
-    target_partition_size_mb = 128
-    reviews_df = preprocess.repartition_dataset(spark, input_path, reviews_df, target_partition_size_mb)
+    reviews_df = preprocess.repartition_dataset(spark, input_path, reviews_df, target_partition_size_mb=128)
 
     # Process reviews for sentiment analysis
     logger.info("Starting to process reviews for sentiment analysis...")
