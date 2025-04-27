@@ -1,5 +1,4 @@
-# EDA2 Coursework
-# Sentiment Analysis System
+# EDA2 Coursework: Sentiment Analysis Distributed System
 
 This repository contains the infrastructure and code to deploy a distributed sentiment analysis system using Hadoop, Spark, and various supporting services. The system is designed to classify text sentiment at scale. Follow the steps below for provisioning a new cluster, running the analysis jobs, downloading output files, and monitoring the cluster.
 
@@ -75,7 +74,7 @@ The system comes pre-loaded with several datasets extracted from the [Amazon Rev
 
 ```bash
 # SSH to the host node
-ssh almalinux@<host-node-ip>
+ssh -i /path/to/lecturer_private_key -J condenser-proxy almalinux@10.134.12.236
 
 # Run analysis on a predefined dataset
 cd ~/sentiment_analysis
