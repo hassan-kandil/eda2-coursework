@@ -74,7 +74,7 @@ The system comes pre-loaded with several datasets extracted from the [Amazon Rev
 
 ```bash
 # SSH to the host node
-ssh -i /path/to/lecturer_private_key -J condenser-proxy almalinux@10.134.12.236
+ssh -i /path/to/lecturer_private_key -J condenser-proxy almalinux@<host-node-ip>
 
 # Run analysis on a predefined dataset
 cd ~/sentiment_analysis
@@ -120,10 +120,10 @@ Each review in your dataset should follow this schema:
 
 ```bash
 # Step 1: Upload your custom dataset to the host node
-scp -i /path/to/lecturer_private_key -J condenser-proxy /path/to/your_local_dataset.jsonl almalinux@10.134.12.236:~/
+scp -i /path/to/lecturer_private_key -J condenser-proxy /path/to/your_local_dataset.jsonl almalinux@<host-node-ip>:~/
 
 # Step 2: SSH to the host node
-ssh -i /path/to/lecturer_private_key -J condenser-proxy almalinux@10.134.12.236
+ssh -i /path/to/lecturer_private_key -J condenser-proxy almalinux@<host-node-ip>
 
 # Step 3: Run analysis using your custom dataset
 cd ~/sentiment_analysis
@@ -158,7 +158,7 @@ Access the following dashboards to monitor the analysis:
 
 ```bash
 # SSH to the host node
-ssh -i /path/to/lecturer_private_key -J condenser-proxy almalinux@10.134.12.236
+ssh -i /path/to/lecturer_private_key -J condenser-proxy almalinux@<host-node-ip>
 
 # List available analysis outputs
 hdfs dfs -ls /summary_outputs/
