@@ -1,5 +1,0 @@
----
-- name: Submit the Spark pipeline job to the cluster
-  ansible.builtin.shell: nohup spark-submit --deploy-mode cluster --master yarn spark_sentiment_analysis.py > output.log 2>&1 &
-  args:
-    chdir: /home/almalinux/sentiment_analysis
