@@ -116,6 +116,13 @@ Each review in your dataset should follow this schema:
 {"text": "Average product. Does the job but nothing special.", "asin": "C09Z789XY", "user_id": "C5LMNO6P7QRS8T", "rating": 3, "title": "It's okay"}
 ```
 
+### Example Small/Medium Datasets To Download (analysis takes within an hour)
+
+```bash
+wget https://mcauleylab.ucsd.edu/public_datasets/data/amazon_2023/raw/review_categories/Digital_Music.jsonl.gz # 130.4K reviews
+wget https://mcauleylab.ucsd.edu/public_datasets/data/amazon_2023/raw/review_categories/Gift_Cards.jsonl.gz # 152.4K reviews
+```
+
 #### Upload and Analysis Process
 
 ```bash
